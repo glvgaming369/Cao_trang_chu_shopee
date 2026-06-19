@@ -1288,8 +1288,19 @@
             } else {
                 addLog('Đã cào xong tất cả các trang của bộ lọc hiện tại.', 'success');
                 
-                // Chuyển sang cào Top Sales
-                await transitionToTopSalesAndCrawl();
+                const selectedXPath = '//*[@class="shopee-sort-by-options__option shopee-sort-by-options__option--selected"]//span[text()="Top Sales"]';
+                function getElementByXPath(xpath) {
+                    return document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+                }
+
+                let isTopSalesSelected = getElementByXPath(selectedXPath);
+                if (!isTopSalesSelected) {
+                    // Nếu chưa cào Top Sales, chuyển sang cào Top Sales
+                    await transitionToTopSalesAndCrawl();
+                } else {
+                    // Nếu đã cào xong cả Top Sales, kết thúc cào và đồng bộ dữ liệu
+                    await finishCrawlingSession();
+                }
             }
         } catch (err) {
             alert("Lỗi cào sản phẩm: " + err.stack);
@@ -1310,8 +1321,8 @@
 
         let isTopSalesSelected = getElementByXPath(selectedXPath);
         if (isTopSalesSelected) {
-            saveRunningState('waiting_topsales'); // Tiếp tục giữ trạng thái chờ tải SP
-            await crawlCurrentPage();
+            // Nếu bằng cách nào đó đã chọn rồi, gọi kết thúc luôn
+            await finishCrawlingSession();
             return;
         }
 
