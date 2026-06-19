@@ -341,18 +341,21 @@
     }
 
     function clickSubCategory(subName) {
-        const xpath = `(//*[text()="${subName}"])[1]`;
-        let el = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-        if (!el) {
-            const allElements = document.querySelectorAll('.shopee-category-list__sub-category, a, span');
-            for (const item of allElements) {
-                if (item.textContent.trim() === subName) {
-                    el = item;
-                    break;
-                }
+        let el = null;
+        const allElements = document.querySelectorAll('.shopee-category-list__sub-category, a, span');
+        for (const item of allElements) {
+            if (item.textContent.trim() === subName) {
+                el = item;
+                break;
             }
         }
         if (el) {
+            const aTag = el.closest('a') || (el.tagName.toLowerCase() === 'a' ? el : null);
+            if (aTag && aTag.href) {
+                addLog(`Tìm thấy liên kết chuyển danh mục: ${aTag.href}. Tiến hành chuyển hướng...`, 'info');
+                window.location.href = aTag.href;
+                return true;
+            }
             el.click();
             return true;
         }
@@ -393,6 +396,53 @@
         sellerCommissionMin: sheetConfigRaw.sellerCommissionMin !== undefined ? (sheetConfigRaw.sellerCommissionMin === 1.0 ? 5.0 : sheetConfigRaw.sellerCommissionMin) : 5.0,
         selectedCategory: sheetConfigRaw.selectedCategory || 'no-category'
     };
+
+    function saveRunningState(step) {
+        const state = {
+            isRunning: isRunning,
+            crawledData: crawledData,
+            currentStep: step,
+            selectedCategory: sheetConfig.selectedCategory
+        };
+        GM_setValue('scraper_running_state_ph', state);
+    }
+
+    function checkAndResumeState() {
+        try {
+            const savedState = GM_getValue('scraper_running_state_ph');
+            if (savedState && savedState.isRunning) {
+                addLog('Phát hiện phiên cào trước đó đang chạy dở dang. Đang tự động khôi phục...', 'warn');
+                isRunning = true;
+                crawledData = savedState.crawledData || [];
+                
+                // Đồng bộ trạng thái UI
+                const startBtn = document.getElementById('scraper-btn-start');
+                const stopBtn = document.getElementById('scraper-btn-stop');
+                if (startBtn) {
+                    startBtn.disabled = true;
+                    startBtn.style.backgroundColor = '#555';
+                }
+                if (stopBtn) {
+                    stopBtn.disabled = false;
+                    stopBtn.style.backgroundColor = '#ee4d2d';
+                }
+                setStatus('Resuming...', '#ff9800');
+
+                // Đợi 3 giây để trang Shopee PH tải ổn định rồi tiếp tục cào
+                setTimeout(async () => {
+                    if (savedState.currentStep === 'waiting_topsales') {
+                        addLog('Tiếp tục bước: Chuyển sang bộ lọc Top Sales...', 'info');
+                        await transitionToTopSalesAndCrawl();
+                    } else {
+                        addLog('Tiếp tục cào dữ liệu sản phẩm...', 'info');
+                        await crawlCurrentPage();
+                    }
+                }, 3000);
+            }
+        } catch (e) {
+            console.error('Lỗi khi khôi phục trạng thái chạy:', e);
+        }
+    }
 
     // Tạo giao diện Panel điều khiển nổi (Floating Panel)
     const panel = document.createElement('div');
@@ -672,7 +722,21 @@
             });
 
             document.getElementById('scraper-btn-export').addEventListener('click', exportToExcel);
+
+            // Tự động lưu dropdown danh mục khi thay đổi để chống reset khi reload trang
+            const categorySelect = document.getElementById('scraper-category-select');
+            if (categorySelect) {
+                categorySelect.addEventListener('change', (e) => {
+                    sheetConfig.selectedCategory = e.target.value;
+                    GM_setValue('sheet_config_ph', sheetConfig);
+                    addLog(`Đã chuyển chế độ cào danh mục sang: ${e.target.value === 'no-category' ? 'No Category' : e.target.value}`, 'info');
+                });
+            }
+
             updateCacheCount();
+
+            // Tự động kiểm tra và khôi phục trạng thái chạy dở dang
+            checkAndResumeState();
         } catch (err) {
             alert("Lỗi khởi tạo Panel: " + err.stack);
             console.error(err);
@@ -1090,6 +1154,15 @@
 
             if (items.length === 0) {
                 addLog('Không tìm thấy sản phẩm nào! Hãy đảm bảo bạn đang ở trang tìm kiếm hoặc danh mục của shopee.ph.', 'error');
+                
+                // TỰ ĐỘNG RELOAD TRANG NẾU KHÔNG CÓ SẢN PHẨM NÀO Ở BƯỚC TOP SALES
+                const savedState = GM_getValue('scraper_running_state_ph');
+                if (savedState && savedState.currentStep === 'waiting_topsales') {
+                    addLog('Phát hiện trang không load được sản phẩm ở bộ lọc Top Sales. Đang tự động reload trang để tải lại...', 'warn');
+                    await sleep(1500);
+                    window.location.reload();
+                    return;
+                }
             }
 
             let countThisPage = 0;
@@ -1097,8 +1170,8 @@
             const soldMin = parseInt(document.getElementById('scraper-sold-min').value) || 0;
 
             for (let i = 0; i < items.length; i++) {
-                const item = items[i];
                 if (!isRunning) return;
+                const item = items[i];
 
                 try {
                     const aTag = item.querySelector('a.contents, a');
@@ -1193,6 +1266,11 @@
                     if (countEl) countEl.innerText = crawledData.length;
                     GM_setValue('crawled_items_cache_ph', crawledCache);
                     updateCacheCount();
+
+                    // Lưu trạng thái chạy sau mỗi lần thêm sản phẩm thành công
+                    const savedState = GM_getValue('scraper_running_state_ph');
+                    const step = (savedState && savedState.currentStep) || 'crawling_popular';
+                    saveRunningState(step);
                 } catch (err) {
                     addLog(`Lỗi xử lý sản phẩm: ${err.message}`, 'error');
                 }
@@ -1209,121 +1287,137 @@
                 await crawlCurrentPage();
             } else {
                 addLog('Đã cào xong tất cả các trang của bộ lọc hiện tại.', 'success');
-
-                // Kiểm tra xem đã cào bộ lọc Top Sales chưa
-                const selectedXPath = '//*[@class="shopee-sort-by-options__option shopee-sort-by-options__option--selected"]//span[text()="Top Sales"]';
-                const targetXPath = '//span[text()="Top Sales"]';
-
-                function getElementByXPath(xpath) {
-                    return document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-                }
-
-                let isTopSalesSelected = getElementByXPath(selectedXPath);
-
-                if (!isTopSalesSelected && isRunning) {
-                    addLog('Bắt đầu chuyển sang bộ lọc "Top Sales" để tiếp tục cào...', 'info');
-                    const targetBtn = getElementByXPath(targetXPath);
-                    if (targetBtn) {
-                        targetBtn.click();
-                        addLog('Đang chờ trang Top Sales load xong...', 'info');
-                        setStatus('Loading Top Sales...', '#2196f3');
-
-                        let activated = false;
-                        for (let attempt = 1; attempt <= 10; attempt++) {
-                            await sleep(1000);
-                            if (!isRunning) return;
-                            if (getElementByXPath(selectedXPath)) {
-                                activated = true;
-                                break;
-                            }
-                        }
-
-                        if (activated) {
-                            addLog('Chuyển sang bộ lọc Top Sales thành công! Bắt đầu cào các trang của Top Sales...', 'success');
-                            await sleep(1500); // Chờ thêm 1.5s để danh sách sản phẩm hiển thị đầy đủ
-                            await crawlCurrentPage(); // Gọi đệ quy cào lại từ trang đầu của bộ lọc Top Sales
-                            return;
-                        } else {
-                            addLog('Không thể xác nhận bộ lọc Top Sales đã kích hoạt (Timeout). Tiến hành gọi API với dữ liệu hiện có...', 'warn');
-                        }
-                    } else {
-                        addLog('Không tìm thấy nút Top Sales trên giao diện. Tiến hành gọi API với dữ liệu hiện có...', 'warn');
-                    }
-                }
-
-                // Nếu đã cào xong cả Top Sales (hoặc không chuyển được sang Top Sales)
-                addLog('Hoàn thành cào tất cả các trang cần thiết. Bắt đầu gọi API hoa hồng...', 'info');
-
-                await enrichCrawledDataWithCommission();
-
-                addLog('Bắt đầu đồng bộ dữ liệu lên Google Sheets...', 'info');
-                try {
-                    await pushToGoogleSheets();
-                } catch (err) {
-                    addLog(`Lỗi đẩy dữ liệu lên Google Sheets: ${err.message}`, 'error');
-                    addLog('Tự động xuất file Excel dự phòng...', 'warn');
-                    exportToExcel(true);
-                }
-
-                // Kiểm tra chế độ chạy sau khi lần đầu up dữ liệu hoàn tất
-                if (isRunning) {
-                    const selectedCat = sheetConfig.selectedCategory;
-                    if (selectedCat && selectedCat !== 'no-category') {
-                        const subCats = CATEGORIES_DATA[selectedCat];
-                        if (subCats && subCats.length > 0) {
-                            const activeSub = getActiveSubCategoryText();
-                            let nextIndex = 0;
-
-                            if (activeSub) {
-                                // Tìm kiếm chính xác tên (case-sensitive)
-                                const idx = subCats.indexOf(activeSub);
-                                if (idx !== -1) {
-                                    nextIndex = idx + 1;
-                                } else {
-                                    addLog(`[Cảnh báo] Danh mục con active trên web là "${activeSub}" nhưng không khớp chính xác với bất kỳ danh mục con nào trong cấu hình của nhóm "${selectedCat}"!`, 'warn');
-                                    // Mặc định click danh mục con đầu tiên
-                                    nextIndex = 0;
-                                }
-                            } else {
-                                addLog(`Không tìm thấy danh mục con nào đang active khi bắt đầu. Mặc định cào từ danh mục con đầu tiên của "${selectedCat}"...`, 'info');
-                                nextIndex = 0;
-                            }
-
-                            if (nextIndex < subCats.length) {
-                                const nextSubName = subCats[nextIndex];
-                                addLog(`Chuyển sang danh mục con tiếp theo: "${nextSubName}"...`, 'info');
-                                setStatus(`Moving to: ${nextSubName}`, '#9c27b0');
-
-                                const clicked = clickSubCategory(nextSubName);
-                                if (clicked) {
-                                    addLog(`Click thành công danh mục con "${nextSubName}". Đợi 4 giây cho trang tải dữ liệu...`, 'success');
-                                    await sleep(4000);
-                                    crawledData = []; // Reset dữ liệu cào tạm thời để không tích lũy trùng
-                                    await crawlCurrentPage(); // Tiếp tục đệ quy cào danh mục con mới
-                                    return; // Kết thúc hàm hiện tại, việc cào tiếp được quản lý bởi đệ quy
-                                } else {
-                                    addLog(`[Lỗi] Không thể click vào danh mục con "${nextSubName}" trên giao diện! Dừng cào tự động.`, 'error');
-                                    setStatus('Error!', '#d32f2f');
-                                    stopScraper();
-                                    return;
-                                }
-                            } else {
-                                addLog(`Đã hoàn thành cào tất cả các danh mục con trong "${selectedCat}"!`, 'success');
-                            }
-                        } else {
-                            addLog(`[Lỗi] Cấu hình của danh mục "${selectedCat}" rỗng hoặc không hợp lệ!`, 'error');
-                        }
-                    }
-                }
-
-                setStatus('Done!', '#4caf50');
-                stopScraper();
-                showDoneOverlay();
+                
+                // Chuyển sang cào Top Sales
+                await transitionToTopSalesAndCrawl();
             }
         } catch (err) {
             alert("Lỗi cào sản phẩm: " + err.stack);
             stopScraper();
         }
+    }
+
+    // Hàm chuyển sang cào Top Sales
+    async function transitionToTopSalesAndCrawl() {
+        if (!isRunning) return;
+
+        const selectedXPath = '//*[@class="shopee-sort-by-options__option shopee-sort-by-options__option--selected"]//span[text()="Top Sales"]';
+        const targetXPath = '//span[text()="Top Sales"]';
+
+        function getElementByXPath(xpath) {
+            return document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+        }
+
+        let isTopSalesSelected = getElementByXPath(selectedXPath);
+        if (isTopSalesSelected) {
+            saveRunningState('waiting_topsales'); // Tiếp tục giữ trạng thái chờ tải SP
+            await crawlCurrentPage();
+            return;
+        }
+
+        addLog('Bắt đầu chuyển sang bộ lọc "Top Sales" để tiếp tục cào...', 'info');
+        const targetBtn = getElementByXPath(targetXPath);
+        if (targetBtn) {
+            // Lưu trạng thái trước khi click để nếu click kích hoạt reload trang, tool vẫn nhớ
+            saveRunningState('waiting_topsales');
+            targetBtn.click();
+            addLog('Đang chờ trang Top Sales load xong...', 'info');
+            setStatus('Loading Top Sales...', '#2196f3');
+
+            let activated = false;
+            for (let attempt = 1; attempt <= 10; attempt++) {
+                await sleep(1000);
+                if (!isRunning) return;
+                if (getElementByXPath(selectedXPath)) {
+                    activated = true;
+                    break;
+                }
+            }
+
+            if (activated) {
+                addLog('Chuyển sang bộ lọc Top Sales thành công! Bắt đầu cào các trang của Top Sales...', 'success');
+                await sleep(1500);
+                await crawlCurrentPage();
+            } else {
+                addLog('Không thể xác nhận bộ lọc Top Sales đã kích hoạt (Timeout). Tiến hành gọi API với dữ liệu hiện có...', 'warn');
+                await finishCrawlingSession();
+            }
+        } else {
+            addLog('Không tìm thấy nút Top Sales trên giao diện. Tiến hành gọi API với dữ liệu hiện có...', 'warn');
+            await finishCrawlingSession();
+        }
+    }
+
+    // Hàm kết thúc phiên cào: Gọi API, push Google Sheets và kiểm tra chuyển danh mục con tiếp theo
+    async function finishCrawlingSession() {
+        addLog('Hoàn thành cào tất cả các trang cần thiết. Bắt đầu gọi API hoa hồng...', 'info');
+
+        await enrichCrawledDataWithCommission();
+
+        addLog('Bắt đầu đồng bộ dữ liệu lên Google Sheets...', 'info');
+        try {
+            await pushToGoogleSheets();
+        } catch (err) {
+            addLog(`Lỗi đẩy dữ liệu lên Google Sheets: ${err.message}`, 'error');
+            addLog('Tự động xuất file Excel dự phòng...', 'warn');
+            exportToExcel(true);
+        }
+
+        // Kiểm tra chế độ chạy sau khi lần đầu up dữ liệu hoàn tất
+        if (isRunning) {
+            const selectedCat = sheetConfig.selectedCategory;
+            if (selectedCat && selectedCat !== 'no-category') {
+                const subCats = CATEGORIES_DATA[selectedCat];
+                if (subCats && subCats.length > 0) {
+                    const activeSub = getActiveSubCategoryText();
+                    let nextIndex = 0;
+
+                    if (activeSub) {
+                        const idx = subCats.indexOf(activeSub);
+                        if (idx !== -1) {
+                            nextIndex = idx + 1;
+                        } else {
+                            addLog(`[Cảnh báo] Danh mục con active trên web là "${activeSub}" nhưng không khớp chính xác với bất kỳ danh mục con nào trong cấu hình của nhóm "${selectedCat}"!`, 'warn');
+                            nextIndex = 0;
+                        }
+                    } else {
+                        addLog(`Không tìm thấy danh mục con nào đang active khi bắt đầu. Mặc định cào từ danh mục con đầu tiên của "${selectedCat}"...`, 'info');
+                        nextIndex = 0;
+                    }
+
+                    if (nextIndex < subCats.length) {
+                        const nextSubName = subCats[nextIndex];
+                        addLog(`Chuyển sang danh mục con tiếp theo: "${nextSubName}"...`, 'info');
+                        setStatus(`Moving to: ${nextSubName}`, '#9c27b0');
+
+                        // Lưu trạng thái trước khi chuyển danh mục mới
+                        crawledData = [];
+                        saveRunningState('crawling_popular');
+
+                        const clicked = clickSubCategory(nextSubName);
+                        if (clicked) {
+                            addLog(`Click thành công danh mục con "${nextSubName}" hoặc đang chuyển hướng trang. Đợi 4 giây cho trang tải dữ liệu...`, 'success');
+                            await sleep(4000);
+                            await crawlCurrentPage();
+                            return;
+                        } else {
+                            addLog(`[Lỗi] Không thể click vào danh mục con "${nextSubName}" trên giao diện! Dừng cào tự động.`, 'error');
+                            setStatus('Error!', '#d32f2f');
+                            stopScraper();
+                            return;
+                        }
+                    } else {
+                        addLog(`Đã hoàn thành cào tất cả các danh mục con trong "${selectedCat}"!`, 'success');
+                    }
+                } else {
+                    addLog(`[Lỗi] Cấu hình của danh mục "${selectedCat}" rỗng hoặc không hợp lệ!`, 'error');
+                }
+            }
+        }
+
+        setStatus('Done!', '#4caf50');
+        stopScraper();
+        showDoneOverlay();
     }
 
     // Google Sheets OAuth
@@ -1686,6 +1780,9 @@
                 stopBtn.style.backgroundColor = '#ee4d2d';
             }
 
+            // Lưu trạng thái bắt đầu cào
+            saveRunningState('crawling_popular');
+
             await crawlCurrentPage();
         } catch (err) {
             alert("Lỗi khi bắt đầu Scraper: " + err.stack);
@@ -1709,6 +1806,9 @@
                 stopBtn.style.backgroundColor = '#555';
             }
             setStatus('Stopped', '#d32f2f');
+            
+            // Xóa trạng thái chạy lưu trong bộ nhớ
+            GM_setValue('scraper_running_state_ph', null);
         } catch (err) {
             console.error("Lỗi khi dừng Scraper:", err);
         }
