@@ -20,6 +20,345 @@
 (function () {
     'use strict';
 
+    const CATEGORIES_DATA = {
+        "Audio": [
+            "Audio & Video Cables & Converters",
+            "Earphones, Headphones & Headsets",
+            "Amplifiers & Mixers",
+            "Speakers and Karaoke",
+            "Home Audio & Speakers",
+            "Media Players"
+        ],
+        "Babies & Kids": [
+            "Baby Detergent",
+            "Babies' Fashion",
+            "Rain Gear",
+            "Nursery",
+            "Moms & Maternity",
+            "Baby Gear",
+            "Health & Safety",
+            "Bath & Skin Care",
+            "Boys' Fashion",
+            "Girls' Fashion",
+            "Feeding & Nursing",
+            "Feeding",
+            "Diapers & Wipes",
+            "Others"
+        ],
+        "Cameras": [
+            "Car / Dash Camera",
+            "Drones",
+            "CCTV / IP Camera",
+            "Action Camera",
+            "Camera Accessories",
+            "Digital Camera",
+            "Others"
+        ],
+        "Gaming": [
+            "Computer Gaming",
+            "Mobile Gaming",
+            "Console Gaming",
+            "Others"
+        ],
+        "Groceries": [
+            "Seasoning, Staple Foods & Baking Ingredients",
+            "Gift Set & Hampers",
+            "Dairy & Eggs",
+            "Cigarettes",
+            "Superfoods & Healthy Foods",
+            "Breakfast Food",
+            "Snack & Sweets",
+            "Frozen & Fresh foods",
+            "Alcoholic Beverages",
+            "Laundry & Household Care",
+            "Beverages",
+            "Others"
+        ],
+        "Health & Personal Care": [
+            "Sexual Wellness",
+            "Medical Supplies",
+            "Men's Grooming",
+            "Health Supplements",
+            "Slimming",
+            "Suncare",
+            "Whitening",
+            "Personal Care",
+            "Bath & Body",
+            "Hair Care",
+            "Skin Care",
+            "Others"
+        ],
+        "Hobbies & Stationery": [
+            "E-Books",
+            "Books and Magazines",
+            "Paper Supplies",
+            "Writing Materials",
+            "Religious Artifacts",
+            "Packaging & Wrapping",
+            "Arts & Crafts",
+            "School & Office Supplies",
+            "Musical Instruments",
+            "Others"
+        ],
+        "Home & Living": [
+            "Hand Warmers, Hot Water Bags & Ice Bags",
+            "Home Maintenance",
+            "Furniture",
+            "Lighting",
+            "Party Supplies",
+            "Beddings",
+            "Bath",
+            "Glassware & Drinkware",
+            "Dinnerware",
+            "Bakeware",
+            "Kitchenware",
+            "Sinkware",
+            "Power Tools",
+            "Home Improvement",
+            "Storage & Organization",
+            "Home Decor",
+            "Garden Decor",
+            "Outdoor & Garden",
+            "Others"
+        ],
+        "Home Appliances": [
+            "Small Household Appliances",
+            "Home Appliance Parts & Accessories",
+            "Large Appliances",
+            "Vacuum Cleaners & Floor Care",
+            "Humidifier & Air Purifier",
+            "Cooling & Heating",
+            "Specialty Appliances",
+            "Small kitchen Appliances",
+            "Garment Care",
+            "Others"
+        ],
+        "Home Entertainment": [
+            "Projectors",
+            "TV Accessories",
+            "Television",
+            "Others"
+        ],
+        "Laptops & Computers": [
+            "USB Gadgets",
+            "Computer Hardware",
+            "Software",
+            "Printers and Inks",
+            "Storage",
+            "Computer Accessories",
+            "Network Components",
+            "Laptops and Desktops",
+            "Others"
+        ],
+        "Makeup & Fragrances": [
+            "Palettes & Makeup Sets",
+            "Tools & Accessories",
+            "Nails",
+            "Fragrances",
+            "Face Makeup",
+            "Lip Makeup",
+            "Eye Makeup",
+            "Others"
+        ],
+        "Men's Apparel": [
+            "Tops",
+            "Shorts",
+            "Pants",
+            "Jeans",
+            "Underwear",
+            "Socks",
+            "Hoodies & Sweatshirts",
+            "Jackets & Sweaters",
+            "Sleepwear",
+            "Suits",
+            "Sets",
+            "Occupational Attire",
+            "Traditional Wear",
+            "Costumes",
+            "Others"
+        ],
+        "Men's Bags & Accessories": [
+            "Hats & Caps",
+            "Wallets",
+            "Eyewear",
+            "Accessories",
+            "Jewelry",
+            "Watches",
+            "Men's Bags",
+            "Accessories Sets & Packages"
+        ],
+        "Men's Shoes": [
+            "Loafer & Boat Shoes",
+            "Sneakers",
+            "Sandals & Flip Flops",
+            "Boots",
+            "Formal",
+            "Shoe Care & Accessories",
+            "Others"
+        ],
+        "Mobiles & Gadgets": [
+            "Portable Audio",
+            "Wearables",
+            "E-Cigarettes",
+            "Tablets",
+            "Mobiles"
+        ],
+        "Mobiles Accessories": [
+            "Others Mobile Accessories",
+            "Attachments",
+            "Cases & Covers",
+            "Powerbanks & Chargers"
+        ],
+        "Motors": [
+            "Car Care & Detailing",
+            "Automotive Parts",
+            "Engine Parts",
+            "Ignition",
+            "Exterior Car Accessories",
+            "Oils, Coolants, & Fluids",
+            "Car Electronics",
+            "Moto Riding & Protective Gear",
+            "Tools & Garage",
+            "Motorcycle Accessories",
+            "Motorcycle & ATV Parts",
+            "Interior Car Accessories",
+            "Others",
+            "Motorcycles"
+        ],
+        "Pet Care": [
+            "Toys & Accessories",
+            "Litter & Toilet",
+            "Pet Essentials",
+            "Pet Clothing & Accessories",
+            "Pet Grooming Supplies",
+            "Pet Toys & Accessories",
+            "Pet Food & Treats",
+            "Others"
+        ],
+        "Sports & Travel": [
+            "Travel Bags",
+            "Travel Accessories",
+            "Travel Organizer",
+            "Kid's Activewear",
+            "Boxing & MMA",
+            "Weather Protection",
+            "WinterSports Gear",
+            "Outdoor Recreation",
+            "Leisure Sports & Game Room",
+            "Golf",
+            "Racket Sports",
+            "Sports Bags",
+            "Women's Activewear",
+            "Men's Activewear",
+            "Cycling, Skates & Scooters",
+            "Team Sports",
+            "Water Sports",
+            "Camping & Hiking",
+            "Weightlifting",
+            "Fitness Accessory",
+            "Yoga",
+            "Exercise & Fitness",
+            "Others"
+        ],
+        "Toys, Games & Collectibles": [
+            "Celebrity Merchandise",
+            "Dress Up & Pretend",
+            "Blasters & Toy Guns",
+            "Sports & Outdoor Toys",
+            "Dolls",
+            "Educational Toys",
+            "Electronic Toys",
+            "Boards & Family Games",
+            "Collectibles",
+            "Character",
+            "Action Figure",
+            "Others"
+        ],
+        "Women Accessories": [
+            "Jewelry",
+            "Watches",
+            "Hair Accessories",
+            "Eyewear",
+            "Wallets & Pouches",
+            "Hats & Caps",
+            "Belts & Scarves",
+            "Gloves",
+            "Accessories Sets & Packages",
+            "Additional Accessories",
+            "Watch & Jewelry Organizers",
+            "Others"
+        ],
+        "Women's Apparel": [
+            "Dresses",
+            "Tops",
+            "Tees",
+            "Shorts",
+            "Pants",
+            "Jeans",
+            "Skirts",
+            "Jumpsuits & Rompers",
+            "Lingerie & Nightwear",
+            "Sets",
+            "Swimsuit",
+            "Jackets & Outerwear",
+            "Plus Size",
+            "Sweater & Cardigans",
+            "Maternity Wear",
+            "Socks & Stockings",
+            "Costumes",
+            "Traditional Wear",
+            "Fabric"
+        ],
+        "Women's Bags": [
+            "Shoulder Bags",
+            "Tote Bags",
+            "Handbags",
+            "Clutches",
+            "Backpacks",
+            "Drawstrings",
+            "Accessories",
+            "Others"
+        ],
+        "Women's Shoes": [
+            "Flats",
+            "Heels",
+            "Flip Flops",
+            "Sneakers",
+            "Wedges & Platforms",
+            "Boots",
+            "Shoe Care & Accessories",
+            "Others"
+        ]
+    };
+
+    function getActiveSubCategoryText() {
+        const xpath = '//*[@class="shopee-category-list__sub-category shopee-category-list__sub-category--active"]';
+        let el = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+        if (!el) {
+            el = document.querySelector('.shopee-category-list__sub-category--active');
+        }
+        return el ? el.textContent.trim() : null;
+    }
+
+    function clickSubCategory(subName) {
+        const xpath = `(//*[text()="${subName}"])[1]`;
+        let el = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+        if (!el) {
+            const allElements = document.querySelectorAll('.shopee-category-list__sub-category, a, span');
+            for (const item of allElements) {
+                if (item.textContent.trim() === subName) {
+                    el = item;
+                    break;
+                }
+            }
+        }
+        if (el) {
+            el.click();
+            return true;
+        }
+        return false;
+    }
+
     // Phân tách logic chạy: affiliate.shopee.ph (Auto Hook) vs shopee.ph (Scraper)
     const isAffiliate = window.location.hostname.includes('affiliate.shopee.ph');
 
@@ -51,7 +390,8 @@
         clientSecret: sheetConfigRaw.clientSecret || '',
         priceMin: sheetConfigRaw.priceMin !== undefined ? (sheetConfigRaw.priceMin === 50 ? 120 : sheetConfigRaw.priceMin) : 120,
         soldMin: sheetConfigRaw.soldMin !== undefined ? (sheetConfigRaw.soldMin === 5 ? 10 : sheetConfigRaw.soldMin) : 10,
-        sellerCommissionMin: sheetConfigRaw.sellerCommissionMin !== undefined ? (sheetConfigRaw.sellerCommissionMin === 1.0 ? 5.0 : sheetConfigRaw.sellerCommissionMin) : 5.0
+        sellerCommissionMin: sheetConfigRaw.sellerCommissionMin !== undefined ? (sheetConfigRaw.sellerCommissionMin === 1.0 ? 5.0 : sheetConfigRaw.sellerCommissionMin) : 5.0,
+        selectedCategory: sheetConfigRaw.selectedCategory || 'no-category'
     };
 
     // Tạo giao diện Panel điều khiển nổi (Floating Panel)
@@ -133,6 +473,15 @@
                         <label style="display: block; margin-bottom: 4px; font-weight: bold; font-size: 11px;">Seller Com Min (₱):</label>
                         <input type="number" step="0.1" id="scraper-com-min" value="${sheetConfig.sellerCommissionMin}" style="width: 85%; padding: 5px; border-radius: 4px; border: 1px solid #444; background-color: #2b2b2b; color: white; font-size: 12px;">
                     </div>
+                </div>
+
+                <!-- Chọn Danh Mục Cào Tuần Tự -->
+                <div style="margin-bottom: 10px;">
+                    <label style="display: block; margin-bottom: 4px; font-weight: bold; font-size: 11px;">Chế độ cào danh mục:</label>
+                    <select id="scraper-category-select" style="width: 98%; padding: 5px; border-radius: 4px; border: 1px solid #444; background-color: #2b2b2b; color: white; font-size: 12px;">
+                        <option value="no-category" ${sheetConfig.selectedCategory === 'no-category' ? 'selected' : ''}>No Category (Chạy trang hiện tại)</option>
+                        ${Object.keys(CATEGORIES_DATA).map(cat => `<option value="${cat}" ${sheetConfig.selectedCategory === cat ? 'selected' : ''}>${cat}</option>`).join('')}
+                    </select>
                 </div>
                 
                 <!-- Accordion cấu hình Google Sheets -->
@@ -300,6 +649,7 @@
                 sheetConfig.priceMin = parseInt(document.getElementById('scraper-price-min').value) || 0;
                 sheetConfig.soldMin = parseInt(document.getElementById('scraper-sold-min').value) || 0;
                 sheetConfig.sellerCommissionMin = parseFloat(document.getElementById('scraper-com-min').value) || 0;
+                sheetConfig.selectedCategory = document.getElementById('scraper-category-select').value;
 
                 GM_setValue('sheet_config_ph', sheetConfig);
                 addLog('Đã lưu cấu hình Google Sheets & Bộ lọc thành công!', 'success');
@@ -639,7 +989,7 @@
                                         'Mã Shop (Shop ID)': simShopId,
                                         'Tên sản phẩm': card.name || "",
                                         'Giá (₱)': priceVal,
-                                        'Lượt bán': card.historical_sold || card.sold || 0,
+                                        'Lượt bán trong 30 ngày': card.sold || 0,
                                         'Đường dẫn sản phẩm': simUrl,
                                         'Hoa hồng (₱)': totalCom,
                                         'Hoa hồng người bán (₱)': sellerCom,
@@ -821,7 +1171,7 @@
                         'Mã Shop (Shop ID)': parsed.shopId,
                         'Tên sản phẩm': title,
                         'Giá (₱)': priceVal,
-                        'Lượt bán': soldVal,
+                        'Lượt bán trong 30 ngày': soldVal,
                         'Đường dẫn sản phẩm': parsed.productUrl,
                         'Hoa hồng (₱)': 0,
                         'Hoa hồng người bán (₱)': 0,
@@ -913,6 +1263,57 @@
                     addLog(`Lỗi đẩy dữ liệu lên Google Sheets: ${err.message}`, 'error');
                     addLog('Tự động xuất file Excel dự phòng...', 'warn');
                     exportToExcel(true);
+                }
+
+                // Kiểm tra chế độ chạy sau khi lần đầu up dữ liệu hoàn tất
+                if (isRunning) {
+                    const selectedCat = sheetConfig.selectedCategory;
+                    if (selectedCat && selectedCat !== 'no-category') {
+                        const subCats = CATEGORIES_DATA[selectedCat];
+                        if (subCats && subCats.length > 0) {
+                            const activeSub = getActiveSubCategoryText();
+                            let nextIndex = 0;
+
+                            if (activeSub) {
+                                // Tìm kiếm chính xác tên (case-sensitive)
+                                const idx = subCats.indexOf(activeSub);
+                                if (idx !== -1) {
+                                    nextIndex = idx + 1;
+                                } else {
+                                    addLog(`[Cảnh báo] Danh mục con active trên web là "${activeSub}" nhưng không khớp chính xác với bất kỳ danh mục con nào trong cấu hình của nhóm "${selectedCat}"!`, 'warn');
+                                    // Mặc định click danh mục con đầu tiên
+                                    nextIndex = 0;
+                                }
+                            } else {
+                                addLog(`Không tìm thấy danh mục con nào đang active khi bắt đầu. Mặc định cào từ danh mục con đầu tiên của "${selectedCat}"...`, 'info');
+                                nextIndex = 0;
+                            }
+
+                            if (nextIndex < subCats.length) {
+                                const nextSubName = subCats[nextIndex];
+                                addLog(`Chuyển sang danh mục con tiếp theo: "${nextSubName}"...`, 'info');
+                                setStatus(`Moving to: ${nextSubName}`, '#9c27b0');
+
+                                const clicked = clickSubCategory(nextSubName);
+                                if (clicked) {
+                                    addLog(`Click thành công danh mục con "${nextSubName}". Đợi 4 giây cho trang tải dữ liệu...`, 'success');
+                                    await sleep(4000);
+                                    crawledData = []; // Reset dữ liệu cào tạm thời để không tích lũy trùng
+                                    await crawlCurrentPage(); // Tiếp tục đệ quy cào danh mục con mới
+                                    return; // Kết thúc hàm hiện tại, việc cào tiếp được quản lý bởi đệ quy
+                                } else {
+                                    addLog(`[Lỗi] Không thể click vào danh mục con "${nextSubName}" trên giao diện! Dừng cào tự động.`, 'error');
+                                    setStatus('Error!', '#d32f2f');
+                                    stopScraper();
+                                    return;
+                                }
+                            } else {
+                                addLog(`Đã hoàn thành cào tất cả các danh mục con trong "${selectedCat}"!`, 'success');
+                            }
+                        } else {
+                            addLog(`[Lỗi] Cấu hình của danh mục "${selectedCat}" rỗng hoặc không hợp lệ!`, 'error');
+                        }
+                    }
                 }
 
                 setStatus('Done!', '#4caf50');
@@ -1078,13 +1479,13 @@
                 const token = await getGoogleAccessToken();
                 addLog('Xác thực thành công. Đang ghi dữ liệu lên Google Sheet...', 'info');
 
-                const headers = ['Mã SP (Item ID)', 'Mã Shop (Shop ID)', 'Tên sản phẩm', 'Giá (₱)', 'Lượt bán', 'Đường dẫn sản phẩm', 'Hoa hồng (₱)', 'Hoa hồng người bán (₱)', 'Hoa hồng Shopee (₱)', 'Nhóm sản phẩm (ID-Group)', 'Danh sách ảnh', 'Category', 'Tồn kho', 'Đánh giá sao', 'Lượt đánh giá', 'Ngày đăng bán'];
+                const headers = ['Mã SP (Item ID)', 'Mã Shop (Shop ID)', 'Tên sản phẩm', 'Giá (₱)', 'Lượt bán trong 30 ngày', 'Đường dẫn sản phẩm', 'Hoa hồng (₱)', 'Hoa hồng người bán (₱)', 'Hoa hồng Shopee (₱)', 'Nhóm sản phẩm (ID-Group)', 'Danh sách ảnh', 'Category', 'Tồn kho', 'Đánh giá sao', 'Lượt đánh giá', 'Ngày đăng bán'];
                 const rows = crawledData.map(item => [
                     item['Mã SP (Item ID)'],
                     item['Mã Shop (Shop ID)'],
                     item['Tên sản phẩm'],
                     item['Giá (₱)'],
-                    item['Lượt bán'],
+                    item['Lượt bán trong 30 ngày'],
                     item['Đường dẫn sản phẩm'],
                     item['Hoa hồng (₱)'] || 0,
                     item['Hoa hồng người bán (₱)'] || 0,

@@ -1,0 +1,258 @@
+Audio|Audio & Video Cables & Converters
+Audio|Earphones, Headphones & Headsets
+Audio|Amplifiers & Mixers
+Audio|Speakers and Karaoke
+Audio|Home Audio & Speakers
+Audio|Media Players
+Babies & Kids|Baby Detergent
+Babies & Kids|Babies' Fashion
+Babies & Kids|Rain Gear
+Babies & Kids|Nursery
+Babies & Kids|Moms & Maternity
+Babies & Kids|Baby Gear
+Babies & Kids|Health & Safety
+Babies & Kids|Bath & Skin Care
+Babies & Kids|Boys' Fashion
+Babies & Kids|Girls' Fashion
+Babies & Kids|Feeding & Nursing
+Babies & Kids|Feeding
+Babies & Kids|Diapers & Wipes
+Babies & Kids|Others
+Cameras|Car / Dash Camera
+Cameras|Drones
+Cameras|CCTV / IP Camera
+Cameras|Action Camera
+Cameras|Camera Accessories
+Cameras|Digital Camera
+Cameras|Others
+Gaming|Computer Gaming
+Gaming|Mobile Gaming
+Gaming|Console Gaming
+Gaming|Others
+Groceries|Seasoning, Staple Foods & Baking Ingredients
+Groceries|Gift Set & Hampers
+Groceries|Dairy & Eggs
+Groceries|Cigarettes
+Groceries|Superfoods & Healthy Foods
+Groceries|Breakfast Food
+Groceries|Snack & Sweets
+Groceries|Frozen & Fresh foods
+Groceries|Alcoholic Beverages
+Groceries|Laundry & Household Care
+Groceries|Beverages
+Groceries|Others
+Health & Personal Care|Sexual Wellness
+Health & Personal Care|Medical Supplies
+Health & Personal Care|Men's Grooming
+Health & Personal Care|Health Supplements
+Health & Personal Care|Slimming
+Health & Personal Care|Suncare
+Health & Personal Care|Whitening
+Health & Personal Care|Personal Care
+Health & Personal Care|Bath & Body
+Health & Personal Care|Hair Care
+Health & Personal Care|Skin Care
+Health & Personal Care|Others
+Hobbies & Stationery|E-Books
+Hobbies & Stationery|Books and Magazines
+Hobbies & Stationery|Paper Supplies
+Hobbies & Stationery|Writing Materials
+Hobbies & Stationery|Religious Artifacts
+Hobbies & Stationery|Packaging & Wrapping
+Hobbies & Stationery|Arts & Crafts
+Hobbies & Stationery|School & Office Supplies
+Hobbies & Stationery|Musical Instruments
+Hobbies & Stationery|Others
+Home & Living|Hand Warmers, Hot Water Bags & Ice Bags
+Home & Living|Home Maintenance
+Home & Living|Furniture
+Home & Living|Lighting
+Home & Living|Party Supplies
+Home & Living|Beddings
+Home & Living|Bath
+Home & Living|Glassware & Drinkware
+Home & Living|Dinnerware
+Home & Living|Bakeware
+Home & Living|Kitchenware
+Home & Living|Sinkware
+Home & Living|Power Tools
+Home & Living|Home Improvement
+Home & Living|Storage & Organization
+Home & Living|Home Decor
+Home & Living|Garden Decor
+Home & Living|Outdoor & Garden
+Home & Living|Others
+Home Appliances|Small Household Appliances
+Home Appliances|Home Appliance Parts & Accessories
+Home Appliances|Large Appliances
+Home Appliances|Vacuum Cleaners & Floor Care
+Home Appliances|Humidifier & Air Purifier
+Home Appliances|Cooling & Heating
+Home Appliances|Specialty Appliances
+Home Appliances|Small kitchen Appliances
+Home Appliances|Garment Care
+Home Appliances|Others
+Home Entertainment|Projectors
+Home Entertainment|TV Accessories
+Home Entertainment|Television
+Home Entertainment|Others
+Laptops & Computers|USB Gadgets
+Laptops & Computers|Computer Hardware
+Laptops & Computers|Software
+Laptops & Computers|Printers and Inks
+Laptops & Computers|Storage
+Laptops & Computers|Computer Accessories
+Laptops & Computers|Network Components
+Laptops & Computers|Laptops and Desktops
+Laptops & Computers|Others
+Makeup & Fragrances|Palettes & Makeup Sets
+Makeup & Fragrances|Tools & Accessories
+Makeup & Fragrances|Nails
+Makeup & Fragrances|Fragrances
+Makeup & Fragrances|Face Makeup
+Makeup & Fragrances|Lip Makeup
+Makeup & Fragrances|Eye Makeup
+Makeup & Fragrances|Others
+Men's Apparel|Tops
+Men's Apparel|Shorts
+Men's Apparel|Pants
+Men's Apparel|Jeans
+Men's Apparel|Underwear
+Men's Apparel|Socks
+Men's Apparel|Hoodies & Sweatshirts
+Men's Apparel|Jackets & Sweaters
+Men's Apparel|Sleepwear
+Men's Apparel|Suits
+Men's Apparel|Sets
+Men's Apparel|Occupational Attire
+Men's Apparel|Traditional Wear
+Men's Apparel|Costumes
+Men's Apparel|Others
+Men's Bags & Accessories|Hats & Caps
+Men's Bags & Accessories|Wallets
+Men's Bags & Accessories|Eyewear
+Men's Bags & Accessories|Accessories
+Men's Bags & Accessories|Jewelry
+Men's Bags & Accessories|Watches
+Men's Bags & Accessories|Men's Bags
+Men's Bags & Accessories|Accessories Sets & Packages
+Men's Shoes|Loafer & Boat Shoes
+Men's Shoes|Sneakers
+Men's Shoes|Sandals & Flip Flops
+Men's Shoes|Boots
+Men's Shoes|Formal
+Men's Shoes|Shoe Care & Accessories
+Men's Shoes|Others
+Mobiles & Gadgets|Portable Audio
+Mobiles & Gadgets|Wearables
+Mobiles & Gadgets|E-Cigarettes
+Mobiles & Gadgets|Tablets
+Mobiles & Gadgets|Mobiles
+Mobiles Accessories|Others Mobile Accessories
+Mobiles Accessories|Attachments
+Mobiles Accessories|Cases & Covers
+Mobiles Accessories|Powerbanks & Chargers
+Motors|Car Care & Detailing
+Motors|Automotive Parts
+Motors|Engine Parts
+Motors|Ignition
+Motors|Exterior Car Accessories
+Motors|Oils, Coolants, & Fluids
+Motors|Car Electronics
+Motors|Moto Riding & Protective Gear
+Motors|Tools & Garage
+Motors|Motorcycle Accessories
+Motors|Motorcycle & ATV Parts
+Motors|Interior Car Accessories
+Motors|Others
+Motors|Motorcycles
+Pet Care|Toys & Accessories
+Pet Care|Litter & Toilet
+Pet Care|Pet Essentials
+Pet Care|Pet Clothing & Accessories
+Pet Care|Pet Grooming Supplies
+Pet Care|Pet Toys & Accessories
+Pet Care|Pet Food & Treats
+Pet Care|Others
+Sports & Travel|Travel Bags
+Sports & Travel|Travel Accessories
+Sports & Travel|Travel Organizer
+Sports & Travel|Kid's Activewear
+Sports & Travel|Boxing & MMA
+Sports & Travel|Weather Protection
+Sports & Travel|WinterSports Gear
+Sports & Travel|Outdoor Recreation
+Sports & Travel|Leisure Sports & Game Room
+Sports & Travel|Golf
+Sports & Travel|Racket Sports
+Sports & Travel|Sports Bags
+Sports & Travel|Women's Activewear
+Sports & Travel|Men's Activewear
+Sports & Travel|Cycling, Skates & Scooters
+Sports & Travel|Team Sports
+Sports & Travel|Water Sports
+Sports & Travel|Camping & Hiking
+Sports & Travel|Weightlifting
+Sports & Travel|Fitness Accessory
+Sports & Travel|Yoga
+Sports & Travel|Exercise & Fitness
+Sports & Travel|Others
+Toys, Games & Collectibles|Celebrity Merchandise
+Toys, Games & Collectibles|Dress Up & Pretend
+Toys, Games & Collectibles|Blasters & Toy Guns
+Toys, Games & Collectibles|Sports & Outdoor Toys
+Toys, Games & Collectibles|Dolls
+Toys, Games & Collectibles|Educational Toys
+Toys, Games & Collectibles|Electronic Toys
+Toys, Games & Collectibles|Boards & Family Games
+Toys, Games & Collectibles|Collectibles
+Toys, Games & Collectibles|Character
+Toys, Games & Collectibles|Action Figure
+Toys, Games & Collectibles|Others
+Women Accessories|Jewelry
+Women Accessories|Watches
+Women Accessories|Hair Accessories
+Women Accessories|Eyewear
+Women Accessories|Wallets & Pouches
+Women Accessories|Hats & Caps
+Women Accessories|Belts & Scarves
+Women Accessories|Gloves
+Women Accessories|Accessories Sets & Packages
+Women Accessories|Additional Accessories
+Women Accessories|Watch & Jewelry Organizers
+Women Accessories|Others
+Women's Apparel|Dresses
+Women's Apparel|Tops
+Women's Apparel|Tees
+Women's Apparel|Shorts
+Women's Apparel|Pants
+Women's Apparel|Jeans
+Women's Apparel|Skirts
+Women's Apparel|Jumpsuits & Rompers
+Women's Apparel|Lingerie & Nightwear
+Women's Apparel|Sets
+Women's Apparel|Swimsuit
+Women's Apparel|Jackets & Outerwear
+Women's Apparel|Plus Size
+Women's Apparel|Sweater & Cardigans
+Women's Apparel|Maternity Wear
+Women's Apparel|Socks & Stockings
+Women's Apparel|Costumes
+Women's Apparel|Traditional Wear
+Women's Apparel|Fabric
+Women's Bags|Shoulder Bags
+Women's Bags|Tote Bags
+Women's Bags|Handbags
+Women's Bags|Clutches
+Women's Bags|Backpacks
+Women's Bags|Drawstrings
+Women's Bags|Accessories
+Women's Bags|Others
+Women's Shoes|Flats
+Women's Shoes|Heels
+Women's Shoes|Flip Flops
+Women's Shoes|Sneakers
+Women's Shoes|Wedges & Platforms
+Women's Shoes|Boots
+Women's Shoes|Shoe Care & Accessories
+Women's Shoes|Others

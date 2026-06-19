@@ -1,0 +1,18 @@
+Duyệt qua file categoryPH.json
+Giao diện :
++ Thêm dropdown hiển thị các danh mục cha, người dùng có thể click chọn
++ Thêm lựa chọn No Category: Tool sẽ không chạy theo logic danh mục, chạy như hiện tại.
+Logic Chạy theo danh mục :
+
+Ví dụ: Người dùng chọn Audio:
+Khi ấn Start  cào và push lần đầu tiên tool kiểm tra xem đang chạy ở chế độ No Category hay Category
+- Nếu là No Category: => Done
+- Nếu là Category:
+    Tool sẽ kiểm tra sự xuất hiện của : //*[@class="shopee-category-list__sub-category shopee-category-list__sub-category--active"]
+    - Nếu không xuất hiện click : (//*[text()="Audio & Video Cables & Converters"])[1] => "Audio & Video Cables & Converters" ( danh mục con đầu tiên của Audio)
+    - Nếu xuất hiện:
+        Lấy toàn bộ text từ: (//*[@class="shopee-category-list__sub-category shopee-category-list__sub-category--active"]) 
+        Ví dụ: "Audio & Video Cables & Converters" => kiểm tra lại nó là danh mục thứ bao nhiêu rồi chúng ta tăng lên 1 
+        Ví dụ:  => Earphones, Headphones & Headsets ( danh mục con thứ 2 của Audio) => click : (//*[text()="Earphones, Headphones & Headsets"])[1]
+    Và tiếp tục cào dữ liệu cho đến khi hết danh mục con
+    
