@@ -13,6 +13,8 @@
 // @grant        GM_addValueChangeListener
 // @grant        GM_removeValueChangeListener
 // @connect      affiliate.shopee.ph
+// @connect      oauth2.googleapis.com
+// @connect      sheets.googleapis.com
 // @require      https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js
 // @run-at       document-start
 // ==/UserScript==
@@ -458,7 +460,7 @@
     panel.style.boxShadow = '0 4px 15px rgba(0,0,0,0.5)';
     panel.style.fontFamily = 'Arial, sans-serif';
     panel.style.fontSize = '13px';
-    panel.style.width = '290px';
+    panel.style.width = '300px';
     panel.style.border = '1px solid #ee4d2d';
 
     // Cập nhật số lượng trong cache hiển thị lên giao diện
@@ -510,18 +512,18 @@
                 </div>
                 
                 <!-- Bộ lọc cơ bản -->
-                <div style="margin-bottom: 10px; display: flex; gap: 5px; flex-wrap: wrap;">
-                    <div style="flex: 1; min-width: 80px;">
-                        <label style="display: block; margin-bottom: 4px; font-weight: bold; font-size: 11px;">Price Min (₱):</label>
-                        <input type="number" id="scraper-price-min" value="${sheetConfig.priceMin}" style="width: 85%; padding: 5px; border-radius: 4px; border: 1px solid #444; background-color: #2b2b2b; color: white; font-size: 12px;">
+                <div style="margin-bottom: 10px; display: flex; gap: 8px;">
+                    <div style="flex: 1; display: flex; flex-direction: column;">
+                        <label style="display: block; margin-bottom: 4px; font-weight: bold; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #ccc;" title="Minimum Price (₱)">Price Min (₱):</label>
+                        <input type="number" id="scraper-price-min" value="${sheetConfig.priceMin}" style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #444; background-color: #2b2b2b; color: white; font-size: 12px; box-sizing: border-box;">
                     </div>
-                    <div style="flex: 1; min-width: 80px;">
-                        <label style="display: block; margin-bottom: 4px; font-weight: bold; font-size: 11px;">Sold Min:</label>
-                        <input type="number" id="scraper-sold-min" value="${sheetConfig.soldMin}" style="width: 85%; padding: 5px; border-radius: 4px; border: 1px solid #444; background-color: #2b2b2b; color: white; font-size: 12px;">
+                    <div style="flex: 1; display: flex; flex-direction: column;">
+                        <label style="display: block; margin-bottom: 4px; font-weight: bold; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #ccc;" title="Minimum Sold">Sold Min:</label>
+                        <input type="number" id="scraper-sold-min" value="${sheetConfig.soldMin}" style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #444; background-color: #2b2b2b; color: white; font-size: 12px; box-sizing: border-box;">
                     </div>
-                    <div style="flex: 1; min-width: 90px;">
-                        <label style="display: block; margin-bottom: 4px; font-weight: bold; font-size: 11px;">Seller Com Min (₱):</label>
-                        <input type="number" step="0.1" id="scraper-com-min" value="${sheetConfig.sellerCommissionMin}" style="width: 85%; padding: 5px; border-radius: 4px; border: 1px solid #444; background-color: #2b2b2b; color: white; font-size: 12px;">
+                    <div style="flex: 1; display: flex; flex-direction: column;">
+                        <label style="display: block; margin-bottom: 4px; font-weight: bold; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #ccc;" title="Minimum Seller Commission (₱)">Com Min (₱):</label>
+                        <input type="number" step="0.1" id="scraper-com-min" value="${sheetConfig.sellerCommissionMin}" style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #444; background-color: #2b2b2b; color: white; font-size: 12px; box-sizing: border-box;">
                     </div>
                 </div>
 
