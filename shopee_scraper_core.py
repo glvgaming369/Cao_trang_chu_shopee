@@ -1,6 +1,5 @@
 import re
 import requests
-import json
 import os
 import time
 import pandas as pd
@@ -9,7 +8,6 @@ from typing import Optional, Dict, Any, List, Set
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 # Google Sheets API Scopes
@@ -122,7 +120,7 @@ def fetch_product_data(item_id: str, proxy_str: Optional[str] = None) -> Optiona
                         "Hoa hồng Shopee (đ)": int(info.get("shopeeComFinal", 0))
                     }
                 else:
-                    raise ValueError(f"API status is not success or productInfo missing.")
+                    raise ValueError("API status is not success or productInfo missing.")
             else:
                 raise requests.HTTPError(f"HTTP Status {response.status_code}")
                 

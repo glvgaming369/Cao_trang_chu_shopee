@@ -1,18 +1,29 @@
-Duyệt qua file categoryPH.json
-Giao diện :
-+ Thêm dropdown hiển thị các danh mục cha, người dùng có thể click chọn
-+ Thêm lựa chọn No Category: Tool sẽ không chạy theo logic danh mục, chạy như hiện tại.
-Logic Chạy theo danh mục :
+Tôi muốn thêm chức năng cào theo từ khoá ở : https://shopee.vn/search/* | https://shopee.ph/search/*
+Logic : Người dùng nhập từ khoá, mỗi từ khoá cách nhau một dòng
+khi người dùng ấn Start:
+- Làm sạch text : //*[@class="shopee-searchbar-input"] và nhập từ khoá => Enter
+- Vuốt xuống dưới để load //li[contains(@class,"shopee-search-item-result__item")]
+- Đếm tổng sản phẩm trên trang tạo vòng lặp qua từng sản phẩm
+- (//li[contains(@class,"shopee-search-item-result__item")])[1]//*[@aria-label="promotion price"]/parent::*/div/span[2] => Giá sản phẩm
+    + text "268.080" => 268080 (VN)
+    + text "9.943.846" => 9943846 (VN)
+    + 48,490 => 48490 (PHILIPPINES)
+- Kiểm tra (//li[contains(@class,"shopee-search-item-result__item")])[1]//*[contains(text(),"Đã bán")] nếu có là => Lượt bán
+    + text "Đã bán 128" => 128
+    + text "Đã bán 5k+" => 5000
+    + text "Đã bán 4k+/tháng" => 4000
+    + text "Đã bán 10/tháng" => 10
+    + Tiếng Anh :thị trường nước ngoài
+        + "10K+ sold" => 10000
+        + "1M+ sold" => 1000000
+        + "2M+ sold" => 2000000
+        + "500 sold" => 500
+        + 560 sold/month => 560
+        + 10K+ sold/month => 10000
 
-Ví dụ: Người dùng chọn Audio:
-Khi ấn Start  cào và push lần đầu tiên tool kiểm tra xem đang chạy ở chế độ No Category hay Category
-- Nếu là No Category: => Done
-- Nếu là Category:
-    Tool sẽ kiểm tra sự xuất hiện của : //*[@class="shopee-category-list__sub-category shopee-category-list__sub-category--active"]
-    - Nếu không xuất hiện click : (//*[text()="Audio & Video Cables & Converters"])[1] => "Audio & Video Cables & Converters" ( danh mục con đầu tiên của Audio)
-    - Nếu xuất hiện:
-        Lấy toàn bộ text từ: (//*[@class="shopee-category-list__sub-category shopee-category-list__sub-category--active"]) 
-        Ví dụ: "Audio & Video Cables & Converters" => kiểm tra lại nó là danh mục thứ bao nhiêu rồi chúng ta tăng lên 1 
-        Ví dụ:  => Earphones, Headphones & Headsets ( danh mục con thứ 2 của Audio) => click : (//*[text()="Earphones, Headphones & Headsets"])[1]
-    Và tiếp tục cào dữ liệu cho đến khi hết danh mục con
-    
+- (//li[contains(@class,"shopee-search-item-result__item")])[1]//a[@href][1] => https://shopee.vn/Xe-%C4%90%E1%BA%A1p-%C4%90ua-MSPORT-M701-Khung-Nh%C3%B4m-SHIMANO-CLARIS-R2000-16-T%E1%BB%91c-%C4%90%E1%BB%99-Road-Bike-700C-Cao-C%E1%BA%A5p-Phanh-%C4%90%C4%A9a-Ch%C3%ADnh-H%C3%A3ng-i.1418176051.27621797366?extraParams=%7B%22display_model_id%22%3A166943941132%2C%22model_selection_logic%22%3A3%7D&sp_atk=4e53a0ad-9864-48a7-8f1d-6118995f0672&xptdk=4e53a0ad-9864-48a7-8f1d-6118995f0672
+    => 27621797366 => item_id
+- Cào xong trang nào mở tab ngầm lấy thông tin luôn: https://affiliate.shopee.vn/offer/product_offer/item_id
+- Đến trang cuối chuyển qua mục "Bán chạy" cào tiếp
+- push lên ggsheet
+- Chuyển qua từ khoá tiếp theo

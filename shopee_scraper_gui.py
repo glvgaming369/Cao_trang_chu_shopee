@@ -1,10 +1,9 @@
 import os
-import sys
 import json
 import threading
 import time
 import queue
-from typing import List, Dict, Any, Optional
+from typing import Optional
 
 import tkinter as tk
 from tkinter import filedialog, messagebox
@@ -385,7 +384,8 @@ class ShopeeScraperApp(ctk.CTk):
                     self.after(0, lambda: messagebox.showinfo("Thành công", "Xác thực Google Sheets thành công và lưu token!"))
             except Exception as e:
                 self.log(f"Lỗi xác thực: {str(e)}", "ERROR")
-                self.after(0, lambda: messagebox.showerror("Lỗi xác thực", str(e)))
+                err_msg = str(e)
+                self.after(0, lambda: messagebox.showerror("Lỗi xác thực", err_msg))
             finally:
                 self.after(0, lambda: self.btn_auth.configure(state="normal", text="🔑 Xác thực Google"))
                 
@@ -431,7 +431,8 @@ class ShopeeScraperApp(ctk.CTk):
                     self.after(0, lambda: messagebox.showerror("Thất bại", "Không thể ghi tiêu đề vào trang tính. Vui lòng kiểm tra lại quyền ghi (Editor)."))
             except Exception as e:
                 self.log(f"Lỗi kết nối: {str(e)}", "ERROR")
-                self.after(0, lambda: messagebox.showerror("Lỗi kết nối", f"Kết nối thất bại:\n{str(e)}"))
+                err_msg = str(e)
+                self.after(0, lambda: messagebox.showerror("Lỗi kết nối", f"Kết nối thất bại:\n{err_msg}"))
             finally:
                 self.after(0, lambda: self.btn_test_connect.configure(state="normal", text="🧪 Kiểm tra kết nối (Test Connect)"))
                 
@@ -715,7 +716,8 @@ class ShopeeScraperApp(ctk.CTk):
                         ))
                     except Exception as ex:
                         self.log(f"Không thể lưu file Excel fallback: {str(ex)}", "ERROR")
-                        self.after(0, lambda: messagebox.showerror("Lỗi nghiêm trọng", f"Không thể lưu cả Excel dự phòng: {str(ex)}"))
+                        err_msg = str(ex)
+                        self.after(0, lambda: messagebox.showerror("Lỗi nghiêm trọng", f"Không thể lưu cả Excel dự phòng: {err_msg}"))
             finally:
                 # Đưa tiến trình về 100% khi kết thúc
                 self.progress_bar.set(1.0)

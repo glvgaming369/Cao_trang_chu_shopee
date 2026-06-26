@@ -26,7 +26,7 @@ import sys
 import subprocess
 import argparse
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Optional
 from datetime import datetime
 
 # ANSI colors
@@ -291,6 +291,8 @@ Examples:
     start_time = datetime.now()
     # Detect agent directory dynamically (default to .agents if exists, fallback to .agent)
     agent_dir_name = ".agents" if (project_path / ".agents").exists() else ".agents"
+    
+    results = []
     
     # Run all verification categories
     for suite in VERIFICATION_SUITE:
