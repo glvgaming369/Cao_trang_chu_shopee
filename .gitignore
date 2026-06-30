@@ -5,3 +5,11 @@
 .gemini/
 .DS_Store
 Thumbs.db
+
+# Dev/reference captures (không commit)
+cUrl.txt
+rs.json
+rs1.json
+fetch.txt
+tailieu.txt
+*.xlsx
