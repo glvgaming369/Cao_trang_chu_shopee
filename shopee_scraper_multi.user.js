@@ -128,6 +128,12 @@
     const NS = 'mktscraper';
     const PANEL_ID = `shopee-${NS}-panel`;
 
+    // Hằng số VideoAI API — khai báo sớm (trước ROUTING) để tránh lỗi Temporal Dead Zone
+    // khi runMainShopeeScraper/runAffiliatePortalScraper được gọi ngay tại document-start.
+    const VIDEOAI_DEFAULT_ENDPOINT = 'https://videoai-api-dev.devappnow.com/api/products/shopee-cache/batch';
+    const VIDEOAI_MAX_BATCH = 200;
+    const VIDEOAI_MIN_IMAGES = 3;
+
     function gmKey(name) {
         const sharedKeys = ['oauth_token', 'token_expiry', 'refresh_token', 'google_config'];
         if (sharedKeys.includes(name)) {
@@ -195,15 +201,18 @@
     const isProductDetailTab = /\/offer\/product_offer\/\d+/.test(window.location.pathname);
     const isAffiliatePortal = HOST.startsWith('affiliate.');
 
-    // Trang captcha/verify được xử lý RIÊNG, không chạy portal/main scraper (tránh dựng panel & resume thừa trên tab captcha)
-    if (isGlobalCaptchaPage) {
-        runCaptchaTabHandler();
-    } else if (isProductDetailTab) {
+    // Trang captcha/verify: vẫn dựng scraper như thường (để KHÔNG mất panel điều khiển),
+    // đồng thời chạy thêm handler captcha (banner + tự xoá cờ khi giải xong).
+    if (isProductDetailTab) {
         runDetailTabHook();
     } else if (isAffiliatePortal) {
         runAffiliatePortalScraper();
     } else {
         runMainShopeeScraper();
+    }
+
+    if (isGlobalCaptchaPage) {
+        runCaptchaTabHandler();
     }
 
     // ============================================================
@@ -712,10 +721,6 @@
     // ============================================================
     // ĐẨY DỮ LIỆU LÊN VIDEOAI API (shopee-cache/batch)
     // ============================================================
-    const VIDEOAI_DEFAULT_ENDPOINT = 'https://videoai-api-dev.devappnow.com/api/products/shopee-cache/batch';
-    const VIDEOAI_MAX_BATCH = 200;
-    const VIDEOAI_MIN_IMAGES = 3;
-
     // Chuyển danh sách sản phẩm nội bộ -> mảng item đúng định dạng API.
     // Trả về { items, skippedFewImages } để lọc trước item có < 3 ảnh (server sẽ skip).
     function buildVideoAIItems(dataList) {
