@@ -26,6 +26,7 @@
     const IMG_DOMAIN = 'down-vn';
     const MIN_IMAGES = 3;
     const MAX_BATCH = 200;
+    const FLUSH_THRESHOLD = 30; // gom đủ ~30 SP thì đẩy 1 đợt lên VideoAI
     const CAPTURE_TIMEOUT_MS = 15000;
     const PDP_API = '/api/v4/pdp/get_pc';
     const VIDEOAI_DEFAULT_ENDPOINT = 'https://videoai-api-dev.devappnow.com/api/products/shopee-cache/batch';
@@ -294,7 +295,10 @@
                 <button id="${NS}-start" style="flex:1; padding:8px; border:none; border-radius:4px; background:#ee4d2d; color:#fff; font-weight:bold; cursor:pointer;">Bắt đầu</button>
                 <button id="${NS}-stop" style="flex:1; padding:8px; border:none; border-radius:4px; background:#555; color:#fff; font-weight:bold; cursor:pointer;" disabled>Dừng</button>
             </div>
-            <div style="font-size:11px; margin-bottom:6px;">Tiến độ: <strong id="${NS}-progress" style="color:#4caf50;">0/0</strong></div>
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; margin-bottom:6px;">
+                <span>Tiến độ: <strong id="${NS}-progress" style="color:#4caf50;">0/0</strong></span>
+                <span>Đã xử lý: <strong id="${NS}-cache" style="color:#4caf50;">0</strong> <button id="${NS}-clear-cache" style="margin-left:4px; padding:2px 6px; border:none; border-radius:3px; background:#444; color:#ccc; cursor:pointer; font-size:10px;">Xóa</button></span>
+            </div>
             <div id="${NS}-log" style="height:130px; overflow-y:auto; background:#0c0c0c; border:1px solid #333; padding:6px; font-family:monospace; font-size:11px; border-radius:4px; word-break:break-all;">
                 <div style="color:#888;">Sẵn sàng.</div>
             </div>
@@ -303,7 +307,17 @@
 
         document.getElementById(`${NS}-close`).addEventListener('click', () => { panel.style.display = 'none'; });
         document.getElementById(`${NS}-start`).addEventListener('click', startRun);
-        document.getElementById(`${NS}-stop`).addEventListener('click', () => { running = false; });
+        document.getElementById(`${NS}-stop`).addEventListener('click', () => { running = false; GM_setValue(`${NS}_session`, null); });
+
+        updateCacheCount();
+        document.getElementById(`${NS}-clear-cache`).addEventListener('click', () => {
+            if (confirm('Xóa toàn bộ cache itemID đã xử lý?')) {
+                doneCache = [];
+                GM_setValue(`${NS}_done`, doneCache);
+                updateCacheCount();
+                log('Đã xóa cache itemID đã xử lý.', 'warn');
+            }
+        });
 
         // Tự loại link trùng ngay khi dán hoặc khi rời ô nhập
         const linksTa = document.getElementById(`${NS}-links`);
@@ -317,6 +331,24 @@
         };
         linksTa.addEventListener('paste', () => setTimeout(runDedupe, 50));
         linksTa.addEventListener('blur', runDedupe);
+
+        maybeResume();
+    }
+
+    // Tự khôi phục phiên nếu trang bị reload giữa chừng (session còn active).
+    // Vị trí được khôi phục nhờ cache: link đã đẩy thành công sẽ bị bỏ qua, chỉ chạy tiếp phần còn lại.
+    let resumeChecked = false;
+    function maybeResume() {
+        if (resumeChecked) return;
+        resumeChecked = true;
+        const session = GM_getValue(`${NS}_session`, null);
+        if (!session || !session.active) return;
+        if (Date.now() - (session.ts || 0) > 6 * 3600 * 1000) { GM_setValue(`${NS}_session`, null); return; } // quá cũ -> bỏ
+        log('Phát hiện phiên đang chạy dở (trang đã reload). Tự khôi phục sau 3s — bấm Dừng để huỷ.', 'warn');
+        setTimeout(() => {
+            const s = GM_getValue(`${NS}_session`, null);
+            if (s && s.active && !running) startRun();
+        }, 3000);
     }
 
     function log(msg, type = 'info') {
@@ -335,6 +367,21 @@
         if (el) el.innerText = `${done}/${total}`;
     }
 
+    function updateCacheCount() {
+        const el = document.getElementById(`${NS}-cache`);
+        if (el) el.innerText = doneCache.length;
+    }
+
+    // Đánh dấu 1 itemID đã xử lý xong (đẩy thành công HOẶC không đạt chất lượng) -> không làm lại
+    function markDone(itemId) {
+        const id = String(itemId);
+        if (!doneCache.includes(id)) {
+            doneCache.push(id);
+            GM_setValue(`${NS}_done`, doneCache);
+            updateCacheCount();
+        }
+    }
+
     function setButtons(isRunning) {
         const s = document.getElementById(`${NS}-start`);
         const st = document.getElementById(`${NS}-stop`);
@@ -343,6 +390,9 @@
     }
 
     let running = false;
+
+    // Cache itemID đã xử lý (đẩy thành công) — tránh xử lý lại giữa các phiên
+    let doneCache = (GM_getValue(`${NS}_done`, []) || []).map(String);
 
     // Tập itemId đang chờ bắt (đồng bộ xuống GM để worker nhiều tab cùng nhận diện)
     const expectingSet = new Set();
@@ -403,30 +453,62 @@
 
         if (!apiKey) { alert('Vui lòng nhập VideoAI API Key!'); return; }
 
-        // Parse + khử trùng
+        // Parse + khử trùng + bỏ qua itemID đã xử lý (cache)
         const seen = new Set();
         const links = [];
         let invalid = 0;
+        let cachedSkip = 0;
         rawLinks.split('\n').map(l => l.trim()).filter(Boolean).forEach(l => {
             const p = parseLink(l);
             if (!p) { invalid++; return; }
             if (seen.has(p.itemId)) return;
             seen.add(p.itemId);
+            if (doneCache.includes(p.itemId)) { cachedSkip++; return; }
             links.push(p);
         });
 
         if (invalid) log(`Bỏ qua ${invalid} dòng link không hợp lệ.`, 'warn');
-        if (links.length === 0) { alert('Không có link hợp lệ!'); return; }
+        if (cachedSkip) log(`Bỏ qua ${cachedSkip} link đã xử lý trước đó (cache).`, 'info');
+        if (links.length === 0) {
+            GM_setValue(`${NS}_session`, null);
+            if (cachedSkip > 0) log('Tất cả link đã được xử lý trước đó (cache).', 'success');
+            else alert('Không có link hợp lệ!');
+            return;
+        }
 
         running = true;
         setButtons(true);
+        GM_setValue(`${NS}_session`, { active: true, ts: Date.now() }); // đánh dấu phiên đang chạy để resume nếu reload
         log(`Bắt đầu xử lý ${links.length} link (${concurrency} tab song song)...`, 'success');
         if (concurrency > 1) log(`Lưu ý: mở ${concurrency} tab cùng lúc tăng tốc nhưng dễ gặp captcha/giới hạn hơn.`, 'warn');
         setProgress(0, links.length);
 
         const collected = [];
+        const collectedIds = []; // itemId song song với collected, để ghi cache sau khi đẩy thành công
         let tooFewImages = 0;
         let done = 0;
+        let totalUpserted = 0;
+        let totalSkipped = 0;
+
+        // Đẩy buffer hiện có lên VideoAI; chỉ xoá buffer + ghi cache khi đẩy thành công (giữ lại để thử lại nếu lỗi)
+        async function flush(isFinal = false) {
+            if (collected.length === 0) return;
+            const n = collected.length;
+            log(`Đẩy ${n} SP lên VideoAI${isFinal ? ' (đợt cuối)' : ''}...`, 'info');
+            try {
+                const r = await pushToVideoAI(collected, apiKey, VIDEOAI_DEFAULT_ENDPOINT, log);
+                totalUpserted += r.upserted;
+                totalSkipped += r.skipped;
+                collectedIds.forEach(id => { if (!doneCache.includes(id)) doneCache.push(id); });
+                GM_setValue(`${NS}_done`, doneCache);
+                updateCacheCount();
+                collected.length = 0;
+                collectedIds.length = 0;
+                log(`Đã đẩy đợt: ghi ${r.upserted}, bỏ qua ${r.skipped}.`, 'success');
+            } catch (e) {
+                log(`Lỗi đẩy VideoAI: ${e.message}. Giữ ${n} SP để thử lại sau.`, 'error');
+            }
+        }
 
         for (let i = 0; i < links.length; i += concurrency) {
             if (!running) break;
@@ -440,38 +522,42 @@
                 setProgress(done, links.length);
                 const text = results[j];
                 const link = batch[j];
-                if (!text) continue;
+                if (!text) continue; // timeout/bắt hụt -> KHÔNG cache (cho phép thử lại sau)
 
                 let item;
                 try { item = buildVideoAIItem(JSON.parse(text), link.productUrl); }
-                catch (e) { log(`Lỗi parse dữ liệu SP ${link.itemId}: ${e.message}`, 'error'); continue; }
+                catch (e) { markDone(link.itemId); log(`Lỗi parse dữ liệu SP ${link.itemId}: ${e.message} — đánh dấu đã xử lý.`, 'error'); continue; }
 
-                if (!item) { log(`Không có dữ liệu hợp lệ cho SP ${link.itemId}.`, 'warn'); continue; }
-                if (item.images.length < MIN_IMAGES) { tooFewImages++; log(`SP ${link.itemId} chỉ có ${item.images.length} ảnh (<${MIN_IMAGES}) — bỏ qua.`, 'warn'); continue; }
+                if (!item) { markDone(link.itemId); log(`Không có dữ liệu hợp lệ cho SP ${link.itemId} — đánh dấu đã xử lý.`, 'warn'); continue; }
+                if (item.images.length < MIN_IMAGES) { tooFewImages++; markDone(link.itemId); log(`SP ${link.itemId} chỉ có ${item.images.length} ảnh (<${MIN_IMAGES}) — bỏ qua & đánh dấu đã xử lý.`, 'warn'); continue; }
 
                 collected.push(item);
+                collectedIds.push(link.itemId);
                 log(`✓ ${item.title.substring(0, 30)}... | ${item.price}₫ | ${item.images.length} ảnh`, 'success');
             }
+
+            // Chu kỳ đẩy: gom đủ ngưỡng thì đẩy ngay (chống mất dữ liệu nếu gián đoạn)
+            if (collected.length >= FLUSH_THRESHOLD) await flush(false);
 
             if (running) await sleep(800 + Math.random() * 800); // nghỉ nhẹ giữa các lô
         }
 
         if (tooFewImages) log(`Đã bỏ ${tooFewImages} SP do <${MIN_IMAGES} ảnh.`, 'warn');
 
+        // Đẩy nốt phần còn lại (kể cả khi người dùng bấm Dừng giữa chừng)
+        await flush(true);
+
+        if (totalUpserted + totalSkipped > 0 || collected.length === 0) {
+            log(`HOÀN TẤT! Tổng ghi: ${totalUpserted}, bỏ qua: ${totalSkipped}.`, 'success');
+        }
         if (collected.length > 0) {
-            log(`Đẩy ${collected.length} SP lên VideoAI...`, 'info');
-            try {
-                const r = await pushToVideoAI(collected, apiKey, VIDEOAI_DEFAULT_ENDPOINT, log);
-                log(`HOÀN TẤT! Ghi: ${r.upserted}, bỏ qua: ${r.skipped}.`, 'success');
-            } catch (e) {
-                log(`Lỗi đẩy VideoAI: ${e.message}`, 'error');
-            }
-        } else {
-            log('Không có sản phẩm hợp lệ để đẩy.', 'warn');
+            log(`Còn ${collected.length} SP chưa đẩy được (lỗi mạng/API) — bấm Bắt đầu lại để thử.`, 'warn');
         }
 
         running = false;
         setButtons(false);
         GM_deleteValue(`${NS}_expecting`);
+        // Chạy đến cuối (hoàn tất hoặc bấm Dừng) -> kết thúc phiên. Chỉ reload giữa chừng mới giữ session để auto-resume.
+        GM_setValue(`${NS}_session`, null);
     }
 })();
