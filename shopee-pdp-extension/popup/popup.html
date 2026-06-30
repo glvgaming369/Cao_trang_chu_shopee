@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { width: 340px; margin: 0; padding: 12px; background: #1a1a1a; color: #fff; font-family: Arial, sans-serif; font-size: 13px; }
+        h1 { font-size: 14px; color: #ee4d2d; margin: 0 0 10px; }
+        label { display: block; font-size: 11px; margin: 6px 0 3px; }
+        input, select, textarea { width: 100%; box-sizing: border-box; padding: 5px; border-radius: 4px; border: 1px solid #444; background: #2b2b2b; color: #fff; font-size: 11px; }
+        textarea { font-family: monospace; resize: vertical; }
+        .row { display: flex; gap: 6px; margin-top: 8px; }
+        .row > button { flex: 1; padding: 8px; border: none; border-radius: 4px; color: #fff; font-weight: bold; cursor: pointer; }
+        #start { background: #ee4d2d; }
+        #stop { background: #555; }
+        .section { border: 1px solid #333; border-radius: 4px; margin-top: 8px; }
+        .section > .head { background: #2b2b2b; padding: 6px 10px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; border-radius: 4px 4px 0 0; }
+        .section > .body { padding: 8px; display: none; background: #1f1f1f; }
+        .status { display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 8px; }
+        .status strong { color: #4caf50; }
+        button.mini { padding: 2px 6px; border: none; border-radius: 3px; background: #444; color: #ccc; cursor: pointer; font-size: 10px; }
+        #tg-test { padding: 4px 8px; border: none; border-radius: 3px; background: #6a1b9a; color: #fff; cursor: pointer; font-size: 11px; font-weight: bold; }
+        #log { height: 150px; overflow-y: auto; background: #0c0c0c; border: 1px solid #333; padding: 6px; font-family: monospace; font-size: 11px; border-radius: 4px; margin-top: 8px; word-break: break-all; }
+        #log .ln { margin-bottom: 3px; }
+        .t-info { color: #2196f3; } .t-success { color: #4caf50; } .t-warn { color: #ffeb3b; } .t-error { color: #f44336; }
+        .time { color: #777; }
+    </style>
+</head>
+<body>
+    <h1>Shopee PDP → VideoAI</h1>
+
+    <label>VideoAI API Key:</label>
+    <input type="password" id="apiKey" placeholder="api_xxxxxxxx">
+
+    <label>Link sản phẩm (mỗi dòng 1 link):</label>
+    <textarea id="links" rows="6" placeholder="https://shopee.vn/product/714557060/20069873884"></textarea>
+
+    <label>Số tab song song:</label>
+    <select id="tabs">
+        <option value="1">1 tab — an toàn nhất (khuyến nghị)</option>
+        <option value="2">2 tab — nhanh hơn</option>
+        <option value="3">3 tab — nhanh nhất, rủi ro captcha cao hơn</option>
+    </select>
+
+    <div class="section">
+        <div class="head" id="tg-head"><span>🔔 Thông báo Telegram (captcha)</span><span id="tg-arrow">▼</span></div>
+        <div class="body" id="tg-body">
+            <label>Bot Token:</label>
+            <input type="password" id="tg_token" placeholder="123456:ABC...">
+            <label>Chat ID (userid):</label>
+            <input type="text" id="tg_chat" placeholder="vd: 123456789">
+            <label>Tên tab (nhận diện khi báo):</label>
+            <input type="text" id="tg_name" placeholder="vd: Máy 1 - PH">
+            <div style="margin-top:6px;"><button id="tg-test">Test Telegram</button></div>
+        </div>
+    </div>
+
+    <div class="row">
+        <button id="start">Bắt đầu</button>
+        <button id="stop" disabled>Dừng</button>
+    </div>
+
+    <div class="status">
+        <span>Tiến độ: <strong id="progress">0/0</strong></span>
+        <span>Đã xử lý: <strong id="cache">0</strong> <button class="mini" id="clear-cache">Xóa</button></span>
+    </div>
+
+    <div id="log"><div class="ln" style="color:#888;">Sẵn sàng.</div></div>
+
+    <script type="module" src="popup.js"></script>
+</body>
+</html>
