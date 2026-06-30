@@ -3,6 +3,7 @@
 Bản Chrome Extension (Manifest V3) của tool cào dữ liệu sản phẩm Shopee qua API `get_pc` rồi đẩy lên **VideoAI**. Chạy độc lập với userscript Tampermonkey (`../shopee_pdp_to_videoai.user.js`).
 
 ## Tính năng (v1.0)
+- **Nguồn link**: *Dán tay* (textarea) hoặc *Từ server (jobs)* — tự kéo job `pending` từ VideoAI, cào, đẩy cache, rồi đánh dấu `useStatus=used` (cờ server, chống làm lại đa máy). Dùng chung 1 API key cho cả jobs + cache + bulk-status.
 - Dán hàng loạt link sản phẩm Shopee, tự **loại link trùng**.
 - Mở **tab ngầm**, bắt API `get_pc` (event-driven, không poll) rồi đẩy VideoAI theo **lô ≤200**, **chu kỳ đẩy mỗi 30 SP**.
 - **Cache itemID đã xử lý** (đẩy OK hoặc bị loại) — không làm lại; nút **Xóa** cache.

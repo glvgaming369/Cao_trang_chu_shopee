@@ -1,7 +1,11 @@
 import { dedupeLinksText } from '../lib/shared.js';
 
 const $ = (id) => document.getElementById(id);
-const CONFIG_FIELDS = ['apiKey', 'links', 'tabs', 'tg_token', 'tg_chat', 'tg_name'];
+const CONFIG_FIELDS = ['apiKey', 'source', 'links', 'tabs', 'tg_token', 'tg_chat', 'tg_name'];
+
+function applySourceUI() {
+    $('links-wrap').style.display = $('source').value === 'server' ? 'none' : 'block';
+}
 
 function readConfig() {
     const cfg = {};
@@ -21,7 +25,11 @@ function send(type, extra = {}) {
 chrome.storage.local.get({ config: {} }, ({ config }) => {
     CONFIG_FIELDS.forEach(f => { if (config[f] != null) $(f).value = config[f]; });
     if (!$('tabs').value) $('tabs').value = '1';
+    if (!$('source').value) $('source').value = 'manual';
+    applySourceUI();
 });
+
+$('source').addEventListener('change', () => { applySourceUI(); saveConfig(); });
 
 // ---------- Lưu cấu hình khi thay đổi (debounce nhẹ) ----------
 let saveTimer = null;

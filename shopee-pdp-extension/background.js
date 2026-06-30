@@ -9,6 +9,9 @@ const FLUSH_THRESHOLD = 30;
 const TG_COOLDOWN_MS = 60000;
 const SESSION_MAX_AGE_MS = 6 * 3600 * 1000;
 const LOG_CAP = 200;
+const JOBS_ENDPOINT = 'https://videoai-api.devappnow.com/api/v1/jobs';
+const BULK_STATUS_ENDPOINT = 'https://videoai-api.devappnow.com/api/v1/shopee-video/bulk-status';
+const JOBS_PAGE_SIZE = 50;
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -169,6 +172,28 @@ async function markDone(ids) {
     if (changed) await store.set('done', doneCache);
 }
 
+// ---------- JOBS SERVER (lấy link + đánh dấu used) ----------
+async function fetchJobsPage(apiKey, page) {
+    const url = `${JOBS_ENDPOINT}?jobType=shopee-video&status=pending&page=${page}&pageSize=${JOBS_PAGE_SIZE}`;
+    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${apiKey}` } });
+    if (res.status === 401) throw new Error('API Key không hợp lệ (401)');
+    if (res.status !== 200) throw new Error(`Jobs API lỗi: Status ${res.status}`);
+    return await res.json();
+}
+
+// Đánh dấu các itemId là useStatus="used" (cờ server, chống làm lại đa máy). Trả số bản ghi cập nhật.
+async function markUsed(apiKey, itemIds) {
+    if (!itemIds || itemIds.length === 0) return 0;
+    const res = await fetch(BULK_STATUS_ENDPOINT, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({ productIds: itemIds.map(String), useStatus: 'used' })
+    });
+    if (res.status !== 200) throw new Error(`bulk-status Status ${res.status}`);
+    const b = await res.json().catch(() => ({}));
+    return num(b.updated);
+}
+
 // ---------- ORCHESTRATOR ----------
 let keepAliveTimer = null;
 
@@ -179,9 +204,97 @@ async function startRun() {
     if (!apiKey) { log('Chưa nhập VideoAI API Key!', 'error'); return; }
 
     const concurrency = Math.max(1, Math.min(3, parseInt(cfg.tabs, 10) || 1));
+    const endpoint = cfg.endpoint || VIDEOAI_DEFAULT_ENDPOINT;
+    const source = cfg.source === 'server' ? 'server' : 'manual';
     doneCache = (await store.get('done', [])).map(String);
 
-    // Parse + khử trùng + bỏ qua cache
+    running = true;
+    startKeepAlive();
+    await store.set('session', { active: true, ts: Date.now(), source });
+    progress = { done: 0, total: 0 };
+    if (concurrency > 1) log(`Lưu ý: mở ${concurrency} tab cùng lúc dễ gặp captcha/giới hạn hơn.`, 'warn');
+
+    // Buffer + tổng kết dùng chung cho cả 2 nguồn
+    const buf = [];
+    const bufIds = [];
+    let tooFewImages = 0, totalUpserted = 0, totalSkipped = 0;
+
+    async function flush(isFinal = false) {
+        if (buf.length === 0) return;
+        const n = buf.length;
+        log(`Đẩy ${n} SP lên VideoAI${isFinal ? ' (đợt cuối)' : ''}...`, 'info');
+        try {
+            const r = await pushToVideoAI(buf, apiKey, endpoint);
+            totalUpserted += r.upserted;
+            totalSkipped += r.skipped;
+            const ids = bufIds.slice();
+            await markDone(ids);
+            if (source === 'server') {
+                try { const u = await markUsed(apiKey, ids); log(`Đánh dấu ${u} job = used trên server.`, 'info'); }
+                catch (e) { log(`Lỗi đánh dấu bulk-status: ${e.message}`, 'warn'); }
+            }
+            buf.length = 0;
+            bufIds.length = 0;
+            log(`Đã đẩy đợt: ghi ${r.upserted}, bỏ qua ${r.skipped}.`, 'success');
+        } catch (e) {
+            log(`Lỗi đẩy VideoAI: ${e.message}. Giữ ${n} SP để thử lại sau.`, 'error');
+        }
+    }
+
+    // Item bị loại (lỗi/không đủ ảnh): đánh dấu đã xử lý ở local + server (mode server) để không làm lại
+    async function markProcessed(itemId) {
+        await markDone([itemId]);
+        if (source === 'server') { try { await markUsed(apiKey, [itemId]); } catch (e) { } }
+    }
+
+    async function processLinks(links) {
+        for (let i = 0; i < links.length; i += concurrency) {
+            if (!running) break;
+            const batch = links.slice(i, i + concurrency);
+            log(`Mở ${batch.length} tab: SP ${batch.map(b => b.itemId).join(', ')}...`, 'info');
+            const results = await Promise.all(batch.map(link => captureProduct(link)));
+
+            for (let j = 0; j < batch.length; j++) {
+                progress.done++;
+                const text = results[j];
+                const link = batch[j];
+                if (!text) continue; // timeout/bắt hụt -> KHÔNG đánh dấu (cho thử lại sau)
+
+                let item = null;
+                try { item = buildVideoAIItem(JSON.parse(text), link.productUrl); }
+                catch (e) { await markProcessed(link.itemId); log(`Lỗi parse SP ${link.itemId}: ${e.message} — đánh dấu đã xử lý.`, 'error'); continue; }
+
+                if (!item) { await markProcessed(link.itemId); log(`Không có dữ liệu hợp lệ cho SP ${link.itemId} — đánh dấu đã xử lý.`, 'warn'); continue; }
+                if (item.images.length < MIN_IMAGES) { tooFewImages++; await markProcessed(link.itemId); log(`SP ${link.itemId} chỉ có ${item.images.length} ảnh (<${MIN_IMAGES}) — bỏ qua & đánh dấu đã xử lý.`, 'warn'); continue; }
+
+                buf.push(item);
+                bufIds.push(link.itemId);
+                log(`✓ ${String(item.title).substring(0, 30)}... | ${item.price}₫ | ${item.images.length} ảnh`, 'success');
+            }
+
+            if (buf.length >= FLUSH_THRESHOLD) await flush(false);
+            if (running) await sleep(800 + Math.random() * 800);
+        }
+    }
+
+    if (source === 'server') {
+        await runServerJobs(apiKey, processLinks, flush);
+    } else {
+        await runManualLinks(cfg, processLinks);
+    }
+
+    if (tooFewImages) log(`Đã bỏ ${tooFewImages} SP do <${MIN_IMAGES} ảnh.`, 'warn');
+    await flush(true);
+    log(`HOÀN TẤT! Tổng ghi: ${totalUpserted}, bỏ qua: ${totalSkipped}.`, 'success');
+    if (buf.length > 0) log(`Còn ${buf.length} SP chưa đẩy được — bấm Bắt đầu lại để thử.`, 'warn');
+
+    running = false;
+    stopKeepAlive();
+    await store.set('session', null);
+}
+
+// Nguồn DÁN TAY: parse textarea, khử trùng, bỏ qua cache local
+async function runManualLinks(cfg, processLinks) {
     const seen = new Set();
     const links = [];
     let invalid = 0, cachedSkip = 0;
@@ -193,79 +306,56 @@ async function startRun() {
         if (doneCache.includes(p.itemId)) { cachedSkip++; return; }
         links.push(p);
     });
-
     if (invalid) log(`Bỏ qua ${invalid} dòng link không hợp lệ.`, 'warn');
     if (cachedSkip) log(`Bỏ qua ${cachedSkip} link đã xử lý trước đó (cache).`, 'info');
     if (links.length === 0) {
-        await store.set('session', null);
         log(cachedSkip > 0 ? 'Tất cả link đã được xử lý trước đó (cache).' : 'Không có link hợp lệ!', cachedSkip > 0 ? 'success' : 'error');
         return;
     }
+    progress.total = links.length;
+    log(`Bắt đầu xử lý ${links.length} link (dán tay)...`, 'success');
+    await processLinks(links);
+}
 
-    running = true;
-    startKeepAlive();
-    await store.set('session', { active: true, ts: Date.now() });
-    progress = { done: 0, total: links.length };
-    log(`Bắt đầu xử lý ${links.length} link (${concurrency} tab song song)...`, 'success');
-    if (concurrency > 1) log(`Lưu ý: mở ${concurrency} tab cùng lúc dễ gặp captcha/giới hạn hơn.`, 'warn');
+// Nguồn TỪ SERVER: kéo job pending từng trang, bỏ qua job đã used, cào -> đẩy -> đánh dấu used
+async function runServerJobs(apiKey, processLinks, flush) {
+    log('Chế độ Từ server: lấy job pending...', 'success');
+    let page = 1;
+    let processedTotal = 0;
+    while (running) {
+        let res;
+        try { res = await fetchJobsPage(apiKey, page); }
+        catch (e) { log(`Lỗi lấy job (trang ${page}): ${e.message}`, 'error'); break; }
+        const items = (res && res.items) || [];
+        if (items.length === 0) { log('Hết job pending.', 'success'); break; }
+        progress.total = res.total || 0;
 
-    const collected = [];
-    const collectedIds = [];
-    let tooFewImages = 0, totalUpserted = 0, totalSkipped = 0;
-
-    async function flush(isFinal = false) {
-        if (collected.length === 0) return;
-        const n = collected.length;
-        log(`Đẩy ${n} SP lên VideoAI${isFinal ? ' (đợt cuối)' : ''}...`, 'info');
-        try {
-            const r = await pushToVideoAI(collected, apiKey, cfg.endpoint || VIDEOAI_DEFAULT_ENDPOINT);
-            totalUpserted += r.upserted;
-            totalSkipped += r.skipped;
-            await markDone(collectedIds);
-            collected.length = 0;
-            collectedIds.length = 0;
-            log(`Đã đẩy đợt: ghi ${r.upserted}, bỏ qua ${r.skipped}.`, 'success');
-        } catch (e) {
-            log(`Lỗi đẩy VideoAI: ${e.message}. Giữ ${n} SP để thử lại sau.`, 'error');
-        }
-    }
-
-    for (let i = 0; i < links.length; i += concurrency) {
-        if (!running) break;
-        const batch = links.slice(i, i + concurrency);
-        log(`Mở ${batch.length} tab: SP ${batch.map(b => b.itemId).join(', ')}...`, 'info');
-        const results = await Promise.all(batch.map(link => captureProduct(link)));
-
-        for (let j = 0; j < batch.length; j++) {
-            progress.done++;
-            const text = results[j];
-            const link = batch[j];
-            if (!text) continue;
-
-            let item = null;
-            try { item = buildVideoAIItem(JSON.parse(text), link.productUrl); }
-            catch (e) { await markDone([link.itemId]); log(`Lỗi parse SP ${link.itemId}: ${e.message} — đánh dấu đã xử lý.`, 'error'); continue; }
-
-            if (!item) { await markDone([link.itemId]); log(`Không có dữ liệu hợp lệ cho SP ${link.itemId} — đánh dấu đã xử lý.`, 'warn'); continue; }
-            if (item.images.length < MIN_IMAGES) { tooFewImages++; await markDone([link.itemId]); log(`SP ${link.itemId} chỉ có ${item.images.length} ảnh (<${MIN_IMAGES}) — bỏ qua & đánh dấu đã xử lý.`, 'warn'); continue; }
-
-            collected.push(item);
-            collectedIds.push(link.itemId);
-            log(`✓ ${String(item.title).substring(0, 30)}... | ${item.price}₫ | ${item.images.length} ảnh`, 'success');
+        const seen = new Set();
+        const links = [];
+        for (const job of items) {
+            const url = job && job.data && job.data.url;
+            const p = url ? parseLink(url) : null;
+            if (!p) continue;
+            if (job.useStatus === 'used') continue;     // đã xử lý (cờ server, đa máy)
+            if (doneCache.includes(p.itemId)) continue; // đã xử lý (local)
+            if (seen.has(p.itemId)) continue;
+            seen.add(p.itemId);
+            links.push(p);
         }
 
-        if (collected.length >= FLUSH_THRESHOLD) await flush(false);
-        if (running) await sleep(800 + Math.random() * 800);
+        if (links.length) {
+            log(`Trang ${page}: ${links.length}/${items.length} job cần cào (tổng pending ${res.total}).`, 'info');
+            await processLinks(links);
+            await flush(false); // đẩy + đánh dấu used ngay sau mỗi trang
+            processedTotal += links.length;
+        } else {
+            log(`Trang ${page}: tất cả đã xử lý, sang trang sau.`, 'info');
+        }
+
+        if (items.length < JOBS_PAGE_SIZE) { log('Đã tới trang cuối.', 'success'); break; }
+        page++;
     }
-
-    if (tooFewImages) log(`Đã bỏ ${tooFewImages} SP do <${MIN_IMAGES} ảnh.`, 'warn');
-    await flush(true);
-    log(`HOÀN TẤT! Tổng ghi: ${totalUpserted}, bỏ qua: ${totalSkipped}.`, 'success');
-    if (collected.length > 0) log(`Còn ${collected.length} SP chưa đẩy được — bấm Bắt đầu lại để thử.`, 'warn');
-
-    running = false;
-    stopKeepAlive();
-    await store.set('session', null);
+    log(`Phiên server: đã xử lý ${processedTotal} job.`, 'success');
 }
 
 function stopRun() {

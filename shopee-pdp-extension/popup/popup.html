@@ -31,8 +31,16 @@
     <label>VideoAI API Key:</label>
     <input type="password" id="apiKey" placeholder="api_xxxxxxxx">
 
-    <label>Link sản phẩm (mỗi dòng 1 link):</label>
-    <textarea id="links" rows="6" placeholder="https://shopee.vn/product/714557060/20069873884"></textarea>
+    <label>Nguồn link:</label>
+    <select id="source">
+        <option value="manual">Dán tay</option>
+        <option value="server">Từ server (jobs pending)</option>
+    </select>
+
+    <div id="links-wrap">
+        <label>Link sản phẩm (mỗi dòng 1 link):</label>
+        <textarea id="links" rows="6" placeholder="https://shopee.vn/product/714557060/20069873884"></textarea>
+    </div>
 
     <label>Số tab song song:</label>
     <select id="tabs">
