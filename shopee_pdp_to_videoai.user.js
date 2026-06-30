@@ -615,7 +615,6 @@
 
         const collected = [];
         const collectedIds = []; // itemId song song với collected, để ghi cache sau khi đẩy thành công
-        let tooFewImages = 0;
         let done = 0;
         let totalUpserted = 0;
         let totalSkipped = 0;
@@ -659,7 +658,6 @@
                 catch (e) { markDone(link.itemId); log(`Lỗi parse dữ liệu SP ${link.itemId}: ${e.message} — đánh dấu đã xử lý.`, 'error'); continue; }
 
                 if (!item) { markDone(link.itemId); log(`Không có dữ liệu hợp lệ cho SP ${link.itemId} — đánh dấu đã xử lý.`, 'warn'); continue; }
-                if (item.images.length < MIN_IMAGES) { tooFewImages++; markDone(link.itemId); log(`SP ${link.itemId} chỉ có ${item.images.length} ảnh (<${MIN_IMAGES}) — bỏ qua & đánh dấu đã xử lý.`, 'warn'); continue; }
 
                 collected.push(item);
                 collectedIds.push(link.itemId);
@@ -671,8 +669,6 @@
 
             if (running) await sleep(800 + Math.random() * 800); // nghỉ nhẹ giữa các lô
         }
-
-        if (tooFewImages) log(`Đã bỏ ${tooFewImages} SP do <${MIN_IMAGES} ảnh.`, 'warn');
 
         // Đẩy nốt phần còn lại (kể cả khi người dùng bấm Dừng giữa chừng)
         await flush(true);
