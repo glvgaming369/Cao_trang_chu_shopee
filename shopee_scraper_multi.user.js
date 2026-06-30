@@ -845,12 +845,16 @@
                 data: JSON.stringify({ items: [] })
             });
 
+            // Server xác thực key TRƯỚC, rồi mới kiểm payload:
+            //   - Sai key  -> 401
+            //   - Đúng key + items rỗng -> 400 ("items array is required")
+            // => 401 = key sai; 200 hoặc 400 = key HỢP LỆ (đã qua xác thực).
             if (response.status === 401) {
                 addLog('Test VideoAI thất bại: API Key không hợp lệ (401).', 'error');
                 alert('API Key VideoAI không hợp lệ!');
                 return;
             }
-            if (response.status === 200) {
+            if (response.status === 200 || response.status === 400) {
                 addLog('TEST KẾT NỐI VIDEOAI THÀNH CÔNG! API Key hợp lệ.', 'success');
                 alert('Kết nối VideoAI thành công! API Key hợp lệ.');
                 return;
