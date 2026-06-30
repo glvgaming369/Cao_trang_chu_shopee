@@ -22,10 +22,25 @@ Bản Chrome Extension (Manifest V3) của tool cào dữ liệu sản phẩm Sh
 ## Cài đặt (load unpacked)
 1. Mở `chrome://extensions`.
 2. Bật **Developer mode** (góc trên phải).
-3. Bấm **Load unpacked** → chọn thư mục `shopee-pdp-extension`.
+3. Bấm **Load unpacked** → chọn thư mục:
+   - `shopee-pdp-extension` (bản source, để phát triển), HOẶC
+   - `shopee-pdp-extension/dist` (bản **minify** để phát hành — xem mục Build).
 4. Ghim icon extension, bấm để mở popup.
 
 > Yêu cầu Chrome 111+ (dùng content script `world: "MAIN"`).
+
+## Build bản minify (bảo vệ mã)
+Source giữ dễ đọc; bản phân phối được **minify** (gộp `lib/shared.js`, đổi tên biến, bỏ comment) ra thư mục `dist/`:
+
+```bash
+cd shopee-pdp-extension
+npm install      # cài esbuild (1 lần)
+npm run build    # sinh dist/
+```
+
+Sau đó **Load unpacked** thư mục `dist/` và phát hành thư mục đó.
+
+> Lưu ý: minify chỉ **làm khó đọc**, không phải bảo mật tuyệt đối — code client luôn có thể dịch ngược. API key vẫn nên để người dùng tự nhập (không hardcode). `dist/` và `node_modules/` không commit vào git (đã `.gitignore`).
 
 ## Sử dụng
 1. Mở popup → nhập **VideoAI API Key** (key **production** cho host `videoai-api.devappnow.com`).

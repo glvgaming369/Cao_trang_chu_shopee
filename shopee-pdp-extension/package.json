@@ -1,0 +1,12 @@
+{
+  "name": "shopee-pdp-extension",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Build minify (esbuild) cho extension Shopee PDP -> VideoAI. Source giữ dễ đọc, output ra dist/.",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
+  }
+}
