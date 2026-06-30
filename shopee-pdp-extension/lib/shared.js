@@ -12,24 +12,37 @@ export function num(v) {
     return isNaN(n) ? 0 : n;
 }
 
-export function imgUrl(hash) {
-    if (!hash) return null;
-    if (String(hash).startsWith('http')) return hash;
-    return `https://${IMG_DOMAIN}.img.susercontent.com/file/${hash}`;
+// Các thị trường hỗ trợ
+export const MARKET_DOMAINS = ['shopee.vn', 'shopee.sg', 'shopee.ph'];
+
+// CDN ảnh theo thị trường suy ra từ URL sản phẩm (vn -> down-vn, sg -> down-sg, ph -> down-ph)
+export function imgPrefixForUrl(url) {
+    const m = String(url || '').match(/shopee\.(vn|sg|ph)/i);
+    return m ? `down-${m[1].toLowerCase()}` : IMG_DOMAIN;
 }
 
-// Parse link -> { shopId, itemId, productUrl }. Hỗ trợ /product/{shop}/{item} và i.{shop}.{item}
+export function imgUrl(hash, prefix = IMG_DOMAIN) {
+    if (!hash) return null;
+    if (String(hash).startsWith('http')) return hash;
+    return `https://${prefix}.img.susercontent.com/file/${hash}`;
+}
+
+// Parse link -> { shopId, itemId, domain, productUrl }. Giữ đúng domain VN/SG/PH của link.
+// Hỗ trợ /product/{shop}/{item} và ...-i.{shop}.{item}
 export function parseLink(href) {
     if (!href) return null;
     let s = String(href).trim();
     try { s = decodeURIComponent(s); } catch (e) { }
+    const hostMatch = s.match(/shopee\.(vn|sg|ph)/i);
+    const domain = hostMatch ? `shopee.${hostMatch[1].toLowerCase()}` : 'shopee.vn';
     let m = s.match(/\/product\/(\d+)\/(\d+)/);
     if (!m) m = s.match(/i\.(\d+)\.(\d+)/);
     if (!m) return null;
     return {
         shopId: String(m[1]),
         itemId: String(m[2]),
-        productUrl: `https://shopee.vn/product/${m[1]}/${m[2]}`
+        domain,
+        productUrl: `https://${domain}/product/${m[1]}/${m[2]}`
     };
 }
 
@@ -60,7 +73,8 @@ export function buildVideoAIItem(json, productUrl) {
 
     let rawImgs = (data.product_images && data.product_images.images) || item.images || [];
     if ((!rawImgs || rawImgs.length === 0) && item.image) rawImgs = [item.image];
-    const images = (rawImgs || []).map(imgUrl).filter(Boolean);
+    const imgPrefix = imgPrefixForUrl(productUrl);
+    const images = (rawImgs || []).map(h => imgUrl(h, imgPrefix)).filter(Boolean);
 
     let priceRaw = num(item.price);
     if (priceRaw <= 0) priceRaw = num(item.price_min);

@@ -6,6 +6,8 @@
   "permissions": ["storage", "tabs", "alarms"],
   "host_permissions": [
     "https://shopee.vn/*",
+    "https://shopee.sg/*",
+    "https://shopee.ph/*",
     "https://videoai-api.devappnow.com/*",
     "https://api.telegram.org/*"
   ],
@@ -19,13 +21,13 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://shopee.vn/*"],
+      "matches": ["https://shopee.vn/*", "https://shopee.sg/*", "https://shopee.ph/*"],
       "js": ["content/pageHook.js"],
       "run_at": "document_start",
       "world": "MAIN"
     },
     {
-      "matches": ["https://shopee.vn/*"],
+      "matches": ["https://shopee.vn/*", "https://shopee.sg/*", "https://shopee.ph/*"],
       "js": ["content/bridge.js"],
       "run_at": "document_start",
       "world": "ISOLATED"

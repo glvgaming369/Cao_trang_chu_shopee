@@ -5,6 +5,8 @@
 // @description  Nhận link sản phẩm Shopee, mở tab ngầm bắt API get_pc (trang sản phẩm thường) rồi đẩy dữ liệu lên VideoAI. Độc lập với tool affiliate.
 // @author       Antigravity
 // @match        https://shopee.vn/*
+// @match        https://shopee.sg/*
+// @match        https://shopee.ph/*
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_deleteValue
@@ -38,24 +40,33 @@
 
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-    function imgUrl(hash) {
-        if (!hash) return null;
-        if (String(hash).startsWith('http')) return hash;
-        return `https://${IMG_DOMAIN}.img.susercontent.com/file/${hash}`;
+    // CDN ảnh theo thị trường suy ra từ URL (vn -> down-vn, sg -> down-sg, ph -> down-ph)
+    function imgPrefixForUrl(url) {
+        const m = String(url || '').match(/shopee\.(vn|sg|ph)/i);
+        return m ? `down-${m[1].toLowerCase()}` : IMG_DOMAIN;
     }
 
-    // Parse link -> { shopId, itemId, productUrl }. Hỗ trợ /product/{shop}/{item} và i.{shop}.{item}
+    function imgUrl(hash, prefix = IMG_DOMAIN) {
+        if (!hash) return null;
+        if (String(hash).startsWith('http')) return hash;
+        return `https://${prefix}.img.susercontent.com/file/${hash}`;
+    }
+
+    // Parse link -> { shopId, itemId, domain, productUrl }. Giữ đúng domain VN/SG/PH của link.
     function parseLink(href) {
         if (!href) return null;
         let s = href.trim();
         try { s = decodeURIComponent(s); } catch (e) { }
+        const hostMatch = s.match(/shopee\.(vn|sg|ph)/i);
+        const domain = hostMatch ? `shopee.${hostMatch[1].toLowerCase()}` : 'shopee.vn';
         let m = s.match(/\/product\/(\d+)\/(\d+)/);
         if (!m) m = s.match(/i\.(\d+)\.(\d+)/);
         if (!m) return null;
         return {
             shopId: String(m[1]),
             itemId: String(m[2]),
-            productUrl: `https://shopee.vn/product/${m[1]}/${m[2]}`
+            domain,
+            productUrl: `https://${domain}/product/${m[1]}/${m[2]}`
         };
     }
 
@@ -252,7 +263,8 @@
         // Ảnh: ưu tiên product_images.images, fallback item.images / item.image
         let rawImgs = (data.product_images && data.product_images.images) || item.images || [];
         if ((!rawImgs || rawImgs.length === 0) && item.image) rawImgs = [item.image];
-        const images = (rawImgs || []).map(imgUrl).filter(Boolean);
+        const imgPrefix = imgPrefixForUrl(productUrl);
+        const images = (rawImgs || []).map(h => imgUrl(h, imgPrefix)).filter(Boolean);
 
         // Giá (đơn vị micro -> chia 100000); sản phẩm có biến thể dùng price_min
         let priceRaw = num(item.price);
