@@ -12,6 +12,7 @@
 // @grant        GM_openInTab
 // @grant        GM_registerMenuCommand
 // @connect      videoai-api-dev.devappnow.com
+// @connect      api.telegram.org
 // @run-at       document-start
 // ==/UserScript==
 
@@ -93,10 +94,77 @@
     const isProductPage = /\/product\/\d+\/\d+/.test(window.location.pathname) ||
                           /i\.\d+\.\d+/.test(window.location.pathname);
 
-    if (isProductPage) {
-        runWorkerHook();
+    // Trang captcha/verify: chỉ báo Telegram + banner, KHÔNG dựng panel/worker (tránh resume cascade trên tab phụ dính captcha)
+    if (isCaptchaUrl()) {
+        handleCaptchaPage();
     } else {
-        runControlPanel();
+        if (isProductPage) {
+            runWorkerHook();
+        } else {
+            runControlPanel();
+        }
+        // Bắt captcha kiểu DOM (chèn sau khi tải trang) trên các trang bình thường
+        window.addEventListener('load', () => {
+            setTimeout(() => { if (isCaptchaDom()) handleCaptchaPage(); }, 2500);
+        });
+    }
+
+    // ============================================================
+    // PHÁT HIỆN CAPTCHA & THÔNG BÁO TELEGRAM
+    // ============================================================
+    function isCaptchaUrl() {
+        const h = window.location.href;
+        return h.includes('/verify/captcha') || h.includes('/verify/traffic') || h.includes('/verify/security');
+    }
+
+    function isCaptchaDom() {
+        return !!document.querySelector('.check-captcha-box') ||
+               !!document.querySelector('.shopee-captcha-wrapper') ||
+               !!document.getElementById('captcha-submit') ||
+               !!document.querySelector('iframe[src*="captcha"]');
+    }
+
+    function sendTelegram(text) {
+        const token = (GM_getValue(`${NS}_tg_token`, '') || '').trim();
+        const chat = (GM_getValue(`${NS}_tg_chat`, '') || '').trim();
+        if (!token || !chat) return Promise.resolve({ ok: false, reason: 'Chưa cấu hình token/chat id' });
+        return new Promise(resolve => {
+            GM_xmlhttpRequest({
+                method: 'POST',
+                url: `https://api.telegram.org/bot${token}/sendMessage`,
+                headers: { 'Content-Type': 'application/json' },
+                data: JSON.stringify({ chat_id: chat, text, parse_mode: 'HTML', disable_web_page_preview: true }),
+                onload: r => resolve({ ok: r.status === 200, status: r.status, body: r.responseText }),
+                onerror: () => resolve({ ok: false, reason: 'network error' }),
+                ontimeout: () => resolve({ ok: false, reason: 'timeout' })
+            });
+        });
+    }
+
+    function notifyCaptcha() {
+        const last = GM_getValue(`${NS}_tg_last`, 0);
+        if (Date.now() - last < 60000) return; // cooldown 60s tránh spam khi nhiều tab cùng dính
+        GM_setValue(`${NS}_tg_last`, Date.now());
+        const name = (GM_getValue(`${NS}_tg_name`, '') || 'PDP→VideoAI').trim();
+        const msg = `⚠️ <b>[${name}]</b> Gặp CAPTCHA trên Shopee — cần giải để tiếp tục cào.\n` +
+                    `🔗 ${window.location.href}\n🕒 ${new Date().toLocaleString()}`;
+        sendTelegram(msg);
+    }
+
+    function showCaptchaBanner() {
+        if (document.getElementById(`${NS}-captcha-banner`)) return;
+        const banner = document.createElement('div');
+        banner.id = `${NS}-captcha-banner`;
+        banner.style.cssText = `position:fixed; top:0; left:0; width:100%; z-index:9999999; background:#ee4d2d; color:#fff; padding:14px; text-align:center; font-size:15px; font-weight:bold; box-shadow:0 2px 10px rgba(0,0,0,0.3);`;
+        banner.innerText = '⚠️ PHÁT HIỆN CAPTCHA! Hãy giải để tool tiếp tục. (Đã gửi thông báo Telegram)';
+        (document.body || document.documentElement).appendChild(banner);
+    }
+
+    function handleCaptchaPage() {
+        try { window.focus(); } catch (e) { }
+        notifyCaptcha();
+        if (document.body) showCaptchaBanner();
+        else window.addEventListener('DOMContentLoaded', showCaptchaBanner);
     }
 
     // ============================================================
@@ -272,6 +340,9 @@
         const savedKey = GM_getValue(`${NS}_apikey`, '');
         const savedLinks = GM_getValue(`${NS}_links`, '');
         const savedTabs = String(GM_getValue(`${NS}_tabs`, '1'));
+        const savedTgToken = GM_getValue(`${NS}_tg_token`, '');
+        const savedTgChat = GM_getValue(`${NS}_tg_chat`, '');
+        const savedTgName = GM_getValue(`${NS}_tg_name`, '');
 
         const panel = document.createElement('div');
         panel.id = PANEL_ID;
@@ -291,6 +362,20 @@
                 <option value="2" ${savedTabs === '2' ? 'selected' : ''}>2 tab — nhanh hơn</option>
                 <option value="3" ${savedTabs === '3' ? 'selected' : ''}>3 tab — nhanh nhất, rủi ro captcha cao hơn</option>
             </select>
+            <div style="border:1px solid #333; border-radius:4px; margin-bottom:8px;">
+                <div id="${NS}-tg-toggle" style="background:#2b2b2b; padding:6px 10px; font-weight:bold; cursor:pointer; display:flex; justify-content:space-between; border-radius:4px 4px 0 0;">
+                    <span>🔔 Thông báo Telegram (captcha)</span><span id="${NS}-tg-arrow">▼</span>
+                </div>
+                <div id="${NS}-tg-fields" style="padding:8px; display:none; background:#1f1f1f;">
+                    <label style="display:block; font-size:11px; margin-bottom:3px;">Bot Token:</label>
+                    <input type="password" id="${NS}-tg-token" placeholder="123456:ABC..." value="${savedTgToken}" style="width:95%; padding:5px; margin-bottom:6px; border-radius:4px; border:1px solid #444; background:#2b2b2b; color:#fff; font-size:11px;">
+                    <label style="display:block; font-size:11px; margin-bottom:3px;">Chat ID (userid):</label>
+                    <input type="text" id="${NS}-tg-chat" placeholder="vd: 123456789" value="${savedTgChat}" style="width:95%; padding:5px; margin-bottom:6px; border-radius:4px; border:1px solid #444; background:#2b2b2b; color:#fff; font-size:11px;">
+                    <label style="display:block; font-size:11px; margin-bottom:3px;">Tên tab (nhận diện khi báo):</label>
+                    <input type="text" id="${NS}-tg-name" placeholder="vd: Máy 1 - PH" value="${savedTgName}" style="width:95%; padding:5px; margin-bottom:6px; border-radius:4px; border:1px solid #444; background:#2b2b2b; color:#fff; font-size:11px;">
+                    <button id="${NS}-tg-test" style="padding:4px 8px; border:none; border-radius:3px; background:#6a1b9a; color:#fff; cursor:pointer; font-size:11px; font-weight:bold;">Test Telegram</button>
+                </div>
+            </div>
             <div style="display:flex; gap:6px; margin-bottom:8px;">
                 <button id="${NS}-start" style="flex:1; padding:8px; border:none; border-radius:4px; background:#ee4d2d; color:#fff; font-weight:bold; cursor:pointer;">Bắt đầu</button>
                 <button id="${NS}-stop" style="flex:1; padding:8px; border:none; border-radius:4px; background:#555; color:#fff; font-weight:bold; cursor:pointer;" disabled>Dừng</button>
@@ -317,6 +402,31 @@
                 updateCacheCount();
                 log('Đã xóa cache itemID đã xử lý.', 'warn');
             }
+        });
+
+        // Telegram: mở/đóng, lưu cấu hình khi rời ô, nút Test
+        document.getElementById(`${NS}-tg-toggle`).addEventListener('click', () => {
+            const f = document.getElementById(`${NS}-tg-fields`);
+            const a = document.getElementById(`${NS}-tg-arrow`);
+            const open = f.style.display === 'none';
+            f.style.display = open ? 'block' : 'none';
+            a.innerText = open ? '▲' : '▼';
+        });
+        const saveTg = () => {
+            GM_setValue(`${NS}_tg_token`, document.getElementById(`${NS}-tg-token`).value.trim());
+            GM_setValue(`${NS}_tg_chat`, document.getElementById(`${NS}-tg-chat`).value.trim());
+            GM_setValue(`${NS}_tg_name`, document.getElementById(`${NS}-tg-name`).value.trim());
+        };
+        ['tg-token', 'tg-chat', 'tg-name'].forEach(id => {
+            document.getElementById(`${NS}-${id}`).addEventListener('blur', saveTg);
+        });
+        document.getElementById(`${NS}-tg-test`).addEventListener('click', async () => {
+            saveTg();
+            const name = (document.getElementById(`${NS}-tg-name`).value || 'PDP→VideoAI').trim();
+            log('Đang gửi tin nhắn test Telegram...', 'info');
+            const r = await sendTelegram(`✅ <b>[${name}]</b> Test thông báo Telegram thành công!`);
+            if (r.ok) { log('Gửi Telegram thành công!', 'success'); }
+            else { log(`Gửi Telegram thất bại: ${r.reason || ('HTTP ' + r.status)}`, 'error'); }
         });
 
         // Tự loại link trùng ngay khi dán hoặc khi rời ô nhập
