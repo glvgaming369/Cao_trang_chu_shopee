@@ -71,17 +71,60 @@ async function sendTelegram(text) {
     }
 }
 
-async function onCaptcha(url) {
+// Gửi ảnh (multipart) kèm caption lên Telegram
+async function sendTelegramPhoto(blob, caption) {
+    const cfg = await store.get('config', {});
+    const token = (cfg.tg_token || '').trim();
+    const chat = (cfg.tg_chat || '').trim();
+    if (!token || !chat) return { ok: false, reason: 'Chưa cấu hình token/chat id' };
+    const fd = new FormData();
+    fd.append('chat_id', chat);
+    fd.append('caption', caption);
+    fd.append('parse_mode', 'HTML');
+    fd.append('photo', blob, 'captcha.jpg');
+    try {
+        const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: 'POST', body: fd });
+        return { ok: res.status === 200, status: res.status };
+    } catch (e) {
+        return { ok: false, reason: e.message };
+    }
+}
+
+function dataUrlToBlob(dataUrl) {
+    const [meta, b64] = dataUrl.split(',');
+    const mime = (meta.match(/:(.*?);/) || [, 'image/jpeg'])[1];
+    const bin = atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+}
+
+async function onCaptcha(url, tab) {
     const cfg = await store.get('config', {});
     if (!cfg.tg_token || !cfg.tg_chat) return; // chưa cấu hình -> bỏ qua
     const last = await store.get('tg_last', 0);
     if (Date.now() - last < TG_COOLDOWN_MS) return;
     await store.set('tg_last', Date.now());
     const name = (cfg.tg_name || 'PDP→VideoAI').trim();
-    const msg = `⚠️ <b>[${name}]</b> Gặp CAPTCHA trên Shopee — cần giải để tiếp tục cào.\n` +
-                `🔗 ${url}\n🕒 ${new Date().toLocaleString()}`;
-    log('Phát hiện CAPTCHA — đã gửi cảnh báo Telegram.', 'warn');
-    await sendTelegram(msg);
+    const caption = `⚠️ <b>[${name}]</b> Gặp CAPTCHA trên Shopee — cần giải để tiếp tục cào.\n` +
+                    `🔗 ${url}\n🕒 ${new Date().toLocaleString()}`;
+    log('Phát hiện CAPTCHA — chụp màn hình gửi Telegram...', 'warn');
+
+    // Chụp ảnh tab captcha: phải đưa tab ra trước (cũng giúp người dùng thấy để giải)
+    let photoSent = false;
+    try {
+        if (tab && tab.id != null) {
+            await chrome.tabs.update(tab.id, { active: true });
+            await sleep(1200); // chờ captcha render xong
+            const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'jpeg', quality: 70 });
+            const r = await sendTelegramPhoto(dataUrlToBlob(dataUrl), caption);
+            photoSent = r.ok;
+            if (!r.ok) log(`Gửi ảnh Telegram thất bại (${r.reason || r.status}).`, 'warn');
+        }
+    } catch (e) {
+        log(`Không chụp được màn hình captcha: ${e.message}`, 'warn');
+    }
+    if (!photoSent) await sendTelegram(caption); // fallback: chỉ gửi chữ
 }
 
 // ---------- CAPTURE (event-driven) ----------
@@ -252,7 +295,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             return;
         }
         case 'captcha':
-            onCaptcha(msg.url);
+            onCaptcha(msg.url, sender && sender.tab);
             return;
         case 'getState':
             sendResponse({ running, progress, logs: logs.slice(-120), doneCount: doneCache.length });

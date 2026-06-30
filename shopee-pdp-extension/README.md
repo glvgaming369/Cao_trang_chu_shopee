@@ -8,7 +8,7 @@ Bản Chrome Extension (Manifest V3) của tool cào dữ liệu sản phẩm Sh
 - **Cache itemID đã xử lý** (đẩy OK hoặc bị loại) — không làm lại; nút **Xóa** cache.
 - **Đa tab song song** 1/2/3.
 - **Resume** khi service worker bị ngủ/khởi động lại (nhờ session + cache).
-- **Báo Telegram** khi gặp captcha (token / chat id / tên tab + cooldown 60s).
+- **Báo Telegram khi gặp captcha**: gửi **ảnh chụp màn hình** trang captcha (tự đưa tab ra trước rồi chụp; lỗi thì gửi chữ), kèm token / chat id / tên tab + cooldown 60s.
 
 ## Kiến trúc
 | File | Vai trò |
