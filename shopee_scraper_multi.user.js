@@ -20,7 +20,7 @@
 // @connect      affiliate.shopee.ph
 // @connect      oauth2.googleapis.com
 // @connect      sheets.googleapis.com
-// @connect      videoai-api-dev.devappnow.com
+// @connect      videoai-api.devappnow.com
 // @require      https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js
 // @run-at       document-start
 // ==/UserScript==
@@ -130,7 +130,7 @@
 
     // Hằng số VideoAI API — khai báo sớm (trước ROUTING) để tránh lỗi Temporal Dead Zone
     // khi runMainShopeeScraper/runAffiliatePortalScraper được gọi ngay tại document-start.
-    const VIDEOAI_DEFAULT_ENDPOINT = 'https://videoai-api-dev.devappnow.com/api/products/shopee-cache/batch';
+    const VIDEOAI_DEFAULT_ENDPOINT = 'https://videoai-api.devappnow.com/api/products/shopee-cache/batch';
     const VIDEOAI_MAX_BATCH = 200;
     const VIDEOAI_MIN_IMAGES = 3;
 

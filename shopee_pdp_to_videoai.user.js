@@ -11,7 +11,7 @@
 // @grant        GM_xmlhttpRequest
 // @grant        GM_openInTab
 // @grant        GM_registerMenuCommand
-// @connect      videoai-api-dev.devappnow.com
+// @connect      videoai-api.devappnow.com
 // @connect      api.telegram.org
 // @run-at       document-start
 // ==/UserScript==
@@ -34,7 +34,7 @@
     const RESUME_DELAY_MS = 3000;            // chờ trước khi tự khôi phục phiên
     const CAPTCHA_DOM_DELAY_MS = 2500;       // chờ sau khi tải trang rồi mới kiểm tra captcha kiểu DOM
     const PDP_API = '/api/v4/pdp/get_pc';
-    const VIDEOAI_DEFAULT_ENDPOINT = 'https://videoai-api-dev.devappnow.com/api/products/shopee-cache/batch';
+    const VIDEOAI_DEFAULT_ENDPOINT = 'https://videoai-api.devappnow.com/api/products/shopee-cache/batch';
 
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
