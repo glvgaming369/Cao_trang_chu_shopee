@@ -20,6 +20,7 @@
 // @connect      affiliate.shopee.ph
 // @connect      oauth2.googleapis.com
 // @connect      sheets.googleapis.com
+// @connect      videoai-api-dev.devappnow.com
 // @require      https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js
 // @run-at       document-start
 // ==/UserScript==
@@ -98,6 +99,7 @@
             currencyBefore: false,
             currencyStrip: /[₫đ]/g,
             decimalMode: 'integer',
+            imgDomain: 'down-vn',
             topSalesLabel: 'Bán chạy',
             categories: CATEGORIES_VN,
             defaults: { priceMin: 80000, commMin: 5000, soldMin: 10, sellerCommissionMin: 5000, priceStep: '1000', comStep: '1' }
@@ -111,6 +113,7 @@
             currencyBefore: true,
             currencyStrip: /[₱₫đ]/g,
             decimalMode: 'float',
+            imgDomain: 'down-sg',
             topSalesLabel: 'Top Sales',
             categories: CATEGORIES_PH,
             defaults: { priceMin: 120, commMin: 5.0, soldMin: 10, sellerCommissionMin: 5.0, priceStep: '1', comStep: '0.1' }
@@ -413,7 +416,8 @@
     }
 
     function imgUrls(ids) {
-        return (ids || []).map(id => `https://down-sg.img.susercontent.com/file/${id}`).join('|');
+        const domain = SITE.imgDomain || 'down-sg';
+        return (ids || []).map(id => `https://${domain}.img.susercontent.com/file/${id}`).join('|');
     }
 
     function getSpreadsheetId(url) {
@@ -674,6 +678,154 @@
         }
     }
 
+    // ============================================================
+    // ĐẨY DỮ LIỆU LÊN VIDEOAI API (shopee-cache/batch)
+    // ============================================================
+    const VIDEOAI_DEFAULT_ENDPOINT = 'https://videoai-api-dev.devappnow.com/api/products/shopee-cache/batch';
+    const VIDEOAI_MAX_BATCH = 200;
+    const VIDEOAI_MIN_IMAGES = 3;
+
+    // Chuyển danh sách sản phẩm nội bộ -> mảng item đúng định dạng API.
+    // Trả về { items, skippedFewImages } để lọc trước item có < 3 ảnh (server sẽ skip).
+    function buildVideoAIItems(dataList) {
+        const items = [];
+        const skippedFewImages = [];
+
+        (dataList || []).forEach(it => {
+            const imagesStr = it[C.images] || '';
+            const images = imagesStr ? String(imagesStr).split('|').map(s => s.trim()).filter(Boolean) : [];
+
+            if (images.length < VIDEOAI_MIN_IMAGES) {
+                skippedFewImages.push(it[C.url] || it[C.itemId] || '(không rõ)');
+                return;
+            }
+
+            const item = {
+                url: it[C.url] || '',
+                title: it[C.name] || '',
+                price: Number(it[C.price]) || 0,
+                rating: Number(it[C.rating]) || 0,
+                soldCount: Number(it._soldTotal != null ? it._soldTotal : it[C.sold]) || 0,
+                stock: Number(it[C.stock]) || 0,
+                shopName: it._shopName || '',
+                images: images,
+                reviewCount: Number(it._reviewCount) || 0,
+                ratingCount: Number(it[C.ratingCount]) || 0
+            };
+
+            if (it._originalPrice) item.originalPrice = Number(it._originalPrice) || 0;
+            if (it[C.category]) {
+                const cats = String(it[C.category]).split('>').map(s => s.trim()).filter(Boolean);
+                if (cats.length) item.categories = cats;
+            }
+            if (it._catId) item.categoryIds = [Number(it._catId)].filter(n => !isNaN(n) && n > 0);
+
+            items.push(item);
+        });
+
+        return { items, skippedFewImages };
+    }
+
+    async function pushToVideoAI(dataList) {
+        if (!dataList || dataList.length === 0) return;
+
+        const cfg = GM_getValue(gmKey('videoai_config')) || {};
+        const apiKey = (cfg.apiKey || '').trim();
+        const endpoint = (cfg.endpoint || VIDEOAI_DEFAULT_ENDPOINT).trim();
+
+        if (!apiKey) {
+            throw new Error('Chưa cấu hình VideoAI API Key!');
+        }
+
+        const { items, skippedFewImages } = buildVideoAIItems(dataList);
+        if (skippedFewImages.length > 0) {
+            addLog(`VideoAI: bỏ qua ${skippedFewImages.length} SP do < ${VIDEOAI_MIN_IMAGES} ảnh (client-side).`, 'warn');
+        }
+        if (items.length === 0) {
+            addLog('VideoAI: không có sản phẩm hợp lệ để đẩy.', 'warn');
+            return;
+        }
+
+        let totalUpserted = 0;
+        let totalSkipped = 0;
+
+        for (let i = 0; i < items.length; i += VIDEOAI_MAX_BATCH) {
+            const chunk = items.slice(i, i + VIDEOAI_MAX_BATCH);
+            const response = await gmRequest({
+                method: 'POST',
+                url: endpoint,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                data: JSON.stringify({ items: chunk })
+            });
+
+            if (response.status === 401) {
+                throw new Error('VideoAI API Key không hợp lệ (401).');
+            }
+            if (response.status !== 200) {
+                throw new Error(`VideoAI API lỗi: Status ${response.status}`);
+            }
+
+            let res;
+            try { res = JSON.parse(response.responseText); } catch (e) { res = {}; }
+            totalUpserted += Number(res.upserted) || 0;
+            totalSkipped += Number(res.skipped) || 0;
+
+            if (Array.isArray(res.errors) && res.errors.length > 0) {
+                res.errors.slice(0, 10).forEach(err => {
+                    addLog(`VideoAI skip: ${err.url} — ${err.reason}`, 'warn');
+                });
+                if (res.errors.length > 10) {
+                    addLog(`VideoAI: ...và ${res.errors.length - 10} lỗi khác.`, 'warn');
+                }
+            }
+        }
+
+        addLog(`VideoAI: ghi thành công ${totalUpserted} SP, bỏ qua ${totalSkipped} SP.`, 'success');
+    }
+
+    async function testVideoAIConnection() {
+        try {
+            const cfg = GM_getValue(gmKey('videoai_config')) || {};
+            const apiKey = (cfg.apiKey || '').trim();
+            const endpoint = (cfg.endpoint || VIDEOAI_DEFAULT_ENDPOINT).trim();
+
+            if (!apiKey) {
+                addLog('Lỗi test VideoAI: chưa nhập API Key!', 'error');
+                alert('Vui lòng nhập VideoAI API Key trước!');
+                return;
+            }
+
+            addLog('Đang test kết nối VideoAI API...', 'info');
+            const response = await gmRequest({
+                method: 'POST',
+                url: endpoint,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                data: JSON.stringify({ items: [] })
+            });
+
+            if (response.status === 401) {
+                addLog('Test VideoAI thất bại: API Key không hợp lệ (401).', 'error');
+                alert('API Key VideoAI không hợp lệ!');
+                return;
+            }
+            if (response.status === 200) {
+                addLog('TEST KẾT NỐI VIDEOAI THÀNH CÔNG! API Key hợp lệ.', 'success');
+                alert('Kết nối VideoAI thành công! API Key hợp lệ.');
+                return;
+            }
+            addLog(`Test VideoAI: phản hồi bất thường (Status ${response.status}).`, 'warn');
+            alert(`Phản hồi VideoAI: Status ${response.status}`);
+        } catch (e) {
+            addLog(`Lỗi test kết nối VideoAI: ${e.message}`, 'error');
+        }
+    }
+
     function exportExcelForData(dataList, prefix = 'data') {
         if (!dataList || dataList.length === 0) {
             addLog('Không có dữ liệu để xuất Excel!', 'warn');
@@ -782,6 +934,14 @@
                 itemData[C.stock] = card ? card.stock : 0;
                 itemData[C.rating] = card && card.item_rating ? Math.round(card.item_rating.rating_star * 100) / 100 : 0;
                 itemData[C.ratingCount] = ratingCount;
+                // Field thô bổ sung cho VideoAI API (không xuất ra Excel/Sheet)
+                if (card) {
+                    itemData._shopName = card.shop_name || '';
+                    itemData._reviewCount = card.cmt_count || 0;
+                    itemData._soldTotal = (card.historical_sold != null ? card.historical_sold : card.sold) || 0;
+                    itemData._originalPrice = card.price_before_discount ? parseFloat(card.price_before_discount) / 100000 : 0;
+                    itemData._catId = card.catid || 0;
+                }
                 itemData[C.postDate] = formatDate(card ? card.ctime : 0);
                 itemData[C.linkType] = 'L1';
                 itemData[C.category] = getCategory(d, keyword);
@@ -840,7 +1000,12 @@
                             [C.ratingCount]: simRatingCount,
                             [C.postDate]: formatDate(simCard.ctime || 0),
                             [C.linkType]: 'L2',
-                            [C.mergedLink]: ''
+                            [C.mergedLink]: '',
+                            _shopName: simCard.shop_name || '',
+                            _reviewCount: simCard.cmt_count || 0,
+                            _soldTotal: (simCard.historical_sold != null ? simCard.historical_sold : simCard.sold) || 0,
+                            _originalPrice: simCard.price_before_discount ? parseFloat(simCard.price_before_discount) / 100000 : 0,
+                            _catId: simCard.catid || 0
                         };
                     }).filter(x => x !== null);
 
@@ -1115,6 +1280,7 @@
         panel.style.cssText = `position: fixed; top: 80px; right: 20px; z-index: 999999; background-color: #1a1a1a; color: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); font-family: Arial, sans-serif; font-size: 13px; width: 300px; border: 1px solid #ee4d2d;`;
 
         let googleConfig = GM_getValue(gmKey('google_config')) || { sheetUrl: '', tabName: 'Sheet1', clientId: '', clientSecret: '' };
+        let videoaiConfig = GM_getValue(gmKey('videoai_config')) || { apiKey: '', endpoint: VIDEOAI_DEFAULT_ENDPOINT, autoPush: false };
         let filterConfig = GM_getValue(`${NS}_filter_config_${SITE.code}`) || {
             priceMin: SITE.defaults.priceMin,
             soldMin: SITE.defaults.soldMin,
@@ -1359,6 +1525,33 @@
                     </div>
                 </div>
 
+                <!-- Cấu hình VideoAI API -->
+                <div style="margin-bottom: 10px; border: 1px solid #333; border-radius: 4px;">
+                    <div id="${elId('videoai-toggle')}" style="background-color: #2b2b2b; padding: 6px 10px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-radius: 4px 4px 0 0;">
+                        <span>🚀 Cấu hình VideoAI API</span>
+                        <span id="${elId('videoai-toggle-arrow')}">▼</span>
+                    </div>
+                    <div id="${elId('videoai-fields')}" style="padding: 10px; display: none; background-color: #1f1f1f;">
+                        <div style="margin-bottom: 8px;">
+                            <label style="display: block; margin-bottom: 3px; font-size: 11px;">VideoAI API Key:</label>
+                            <input type="password" id="${elId('videoai-key')}" placeholder="api_xxxxxxxx" value="${videoaiConfig.apiKey}" style="width: 95%; padding: 5px; border-radius: 4px; border: 1px solid #444; background-color: #2b2b2b; color: white; font-size: 11px;">
+                        </div>
+                        <div style="margin-bottom: 8px;">
+                            <label style="display: block; margin-bottom: 3px; font-size: 11px;">Endpoint:</label>
+                            <input type="text" id="${elId('videoai-endpoint')}" placeholder="${VIDEOAI_DEFAULT_ENDPOINT}" value="${videoaiConfig.endpoint}" style="width: 95%; padding: 5px; border-radius: 4px; border: 1px solid #444; background-color: #2b2b2b; color: white; font-size: 11px;">
+                        </div>
+                        <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                            <input type="checkbox" id="${elId('videoai-autopush')}" ${videoaiConfig.autoPush ? 'checked' : ''} style="cursor: pointer;">
+                            <label for="${elId('videoai-autopush')}" style="font-size: 11px; cursor: pointer;">Tự động đẩy lên VideoAI sau mỗi đợt cào</label>
+                        </div>
+                        <div style="display: flex; gap: 5px; justify-content: flex-end; flex-wrap: wrap;">
+                            <button id="${elId('btn-save-videoai')}" style="padding: 4px 6px; border: none; border-radius: 3px; background-color: #0288d1; color: white; cursor: pointer; font-size: 11px;">Lưu cấu hình</button>
+                            <button id="${elId('btn-test-videoai')}" style="padding: 4px 6px; border: none; border-radius: 3px; background-color: #6a1b9a; color: white; cursor: pointer; font-size: 11px; font-weight: bold;">Test kết nối</button>
+                            <button id="${elId('btn-push-videoai')}" style="padding: 4px 6px; border: none; border-radius: 3px; background-color: #ee4d2d; color: white; cursor: pointer; font-size: 11px; font-weight: bold;">Đẩy lên VideoAI</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Khung hiển thị tiến độ cào từ khóa (Chỉ hiện ở chế độ keyword khi đang chạy) -->
                 <div id="${elId('keyword-progress-wrapper')}" style="margin-bottom: 10px; background-color: #2b2b2b; padding: 8px; border-radius: 4px; border: 1px solid #ee4d2d; display: none;">
                     <div style="font-weight: bold; font-size: 11px; color: #ee4d2d; margin-bottom: 4px;">Tiến độ cào từ khóa:</div>
@@ -1476,6 +1669,48 @@
                 exportExcelForData(crawledData, `${sheetConfig.selectedMode}_crawled`);
             });
 
+            document.getElementById(elId('videoai-toggle')).addEventListener('click', () => {
+                const fields = document.getElementById(elId('videoai-fields'));
+                const arrow = document.getElementById(elId('videoai-toggle-arrow'));
+                if (fields.style.display === 'none') {
+                    fields.style.display = 'block';
+                    arrow.innerText = '▲';
+                } else {
+                    fields.style.display = 'none';
+                    arrow.innerText = '▼';
+                }
+            });
+
+            document.getElementById(elId('btn-save-videoai')).addEventListener('click', () => {
+                readVideoAIInputsToConfig();
+                GM_setValue(gmKey('videoai_config'), videoaiConfig);
+                addLog('Đã lưu cấu hình VideoAI API!', 'success');
+                alert('Lưu cấu hình VideoAI thành công!');
+            });
+
+            document.getElementById(elId('btn-test-videoai')).addEventListener('click', async () => {
+                readVideoAIInputsToConfig();
+                GM_setValue(gmKey('videoai_config'), videoaiConfig);
+                await testVideoAIConnection();
+            });
+
+            document.getElementById(elId('btn-push-videoai')).addEventListener('click', async () => {
+                readVideoAIInputsToConfig();
+                GM_setValue(gmKey('videoai_config'), videoaiConfig);
+                if (!crawledData || crawledData.length === 0) {
+                    alert('Chưa có sản phẩm nào để đẩy!');
+                    return;
+                }
+                updateMergedLinks(crawledData);
+                addLog(`Đẩy thủ công ${crawledData.length} SP lên VideoAI...`, 'info');
+                try {
+                    await pushToVideoAI(crawledData);
+                } catch (err) {
+                    addLog(`Lỗi đẩy VideoAI: ${err.message}`, 'error');
+                    alert(`Lỗi đẩy VideoAI: ${err.message}`);
+                }
+            });
+
             const categorySelect = document.getElementById(elId('category-select'));
             if (categorySelect) {
                 categorySelect.addEventListener('change', (e) => {
@@ -1494,6 +1729,12 @@
             googleConfig.tabName = document.getElementById(elId('sheet-tab')).value.trim();
             googleConfig.clientId = document.getElementById(elId('client-id')).value.trim();
             googleConfig.clientSecret = document.getElementById(elId('client-secret')).value.trim();
+        }
+
+        function readVideoAIInputsToConfig() {
+            videoaiConfig.apiKey = document.getElementById(elId('videoai-key')).value.trim();
+            videoaiConfig.endpoint = document.getElementById(elId('videoai-endpoint')).value.trim() || VIDEOAI_DEFAULT_ENDPOINT;
+            videoaiConfig.autoPush = document.getElementById(elId('videoai-autopush')).checked;
         }
 
         function saveFilterConfig() {
@@ -1748,6 +1989,14 @@
                                 addLog(`Lỗi đồng bộ Sheets: ${err.message}`, 'error');
                                 addLog('Tải file Excel dự phòng cho trang này...', 'warn');
                                 exportExcelForData(pageData, `backup_page`);
+                            }
+                            if (videoaiConfig.autoPush) {
+                                addLog(`Tự động đẩy ${pageData.length} SP lên VideoAI...`, 'info');
+                                try {
+                                    await pushToVideoAI(pageData);
+                                } catch (err) {
+                                    addLog(`Lỗi tự động đẩy VideoAI: ${err.message}`, 'error');
+                                }
                             }
                         }
                     } else {
@@ -2050,6 +2299,7 @@
         panel.style.cssText = `position: fixed; top: 80px; right: 20px; z-index: 999999; background-color: #1a1a1a; color: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); font-family: Arial, sans-serif; font-size: 13px; width: 320px; border: 1px solid #ee4d2d;`;
 
         let googleConfig = GM_getValue(gmKey('google_config')) || { sheetUrl: '', tabName: 'Sheet1', clientId: '', clientSecret: '' };
+        let videoaiConfig = GM_getValue(gmKey('videoai_config')) || { apiKey: '', endpoint: VIDEOAI_DEFAULT_ENDPOINT, autoPush: false };
         let filterConfig = GM_getValue(`${NS}_aff_filter_config_${SITE.code}`) || {
             commMin: SITE.defaults.commMin || 5000,
             soldMin: SITE.defaults.soldMin,
@@ -2189,6 +2439,33 @@
                     </div>
                 </div>
 
+                <!-- Cấu hình VideoAI API -->
+                <div style="margin-bottom: 10px; border: 1px solid #333; border-radius: 4px;">
+                    <div id="${elId('videoai-toggle')}" style="background-color: #2b2b2b; padding: 6px 10px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-radius: 4px 4px 0 0;">
+                        <span>🚀 Cấu hình VideoAI API</span>
+                        <span id="${elId('videoai-toggle-arrow')}">▼</span>
+                    </div>
+                    <div id="${elId('videoai-fields')}" style="padding: 10px; display: none; background-color: #1f1f1f;">
+                        <div style="margin-bottom: 8px;">
+                            <label style="display: block; margin-bottom: 3px; font-size: 11px;">VideoAI API Key:</label>
+                            <input type="password" id="${elId('videoai-key')}" placeholder="api_xxxxxxxx" value="${videoaiConfig.apiKey}" style="width: 95%; padding: 5px; border-radius: 4px; border: 1px solid #444; background-color: #2b2b2b; color: white; font-size: 11px;">
+                        </div>
+                        <div style="margin-bottom: 8px;">
+                            <label style="display: block; margin-bottom: 3px; font-size: 11px;">Endpoint:</label>
+                            <input type="text" id="${elId('videoai-endpoint')}" placeholder="${VIDEOAI_DEFAULT_ENDPOINT}" value="${videoaiConfig.endpoint}" style="width: 95%; padding: 5px; border-radius: 4px; border: 1px solid #444; background-color: #2b2b2b; color: white; font-size: 11px;">
+                        </div>
+                        <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                            <input type="checkbox" id="${elId('videoai-autopush')}" ${videoaiConfig.autoPush ? 'checked' : ''} style="cursor: pointer;">
+                            <label for="${elId('videoai-autopush')}" style="font-size: 11px; cursor: pointer;">Tự động đẩy lên VideoAI sau mỗi đợt cào</label>
+                        </div>
+                        <div style="display: flex; gap: 5px; justify-content: flex-end; flex-wrap: wrap;">
+                            <button id="${elId('btn-save-videoai')}" style="padding: 4px 6px; border: none; border-radius: 3px; background-color: #0288d1; color: white; cursor: pointer; font-size: 11px;">Lưu cấu hình</button>
+                            <button id="${elId('btn-test-videoai')}" style="padding: 4px 6px; border: none; border-radius: 3px; background-color: #6a1b9a; color: white; cursor: pointer; font-size: 11px; font-weight: bold;">Test kết nối</button>
+                            <button id="${elId('btn-push-videoai')}" style="padding: 4px 6px; border: none; border-radius: 3px; background-color: #ee4d2d; color: white; cursor: pointer; font-size: 11px; font-weight: bold;">Đẩy lên VideoAI</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Cấu hình Blacklist từ khóa -->
                 <div style="margin-bottom: 10px; border: 1px solid #333; border-radius: 4px;">
                     <div id="${elId('blacklist-toggle')}" style="background-color: #2b2b2b; padding: 6px 10px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-radius: 4px 4px 0 0;">
@@ -2324,6 +2601,48 @@
                 exportExcelForData(allCrawledData, `all_keywords`);
             });
 
+            document.getElementById(elId('videoai-toggle')).addEventListener('click', () => {
+                const fields = document.getElementById(elId('videoai-fields'));
+                const arrow = document.getElementById(elId('videoai-toggle-arrow'));
+                if (fields.style.display === 'none') {
+                    fields.style.display = 'block';
+                    arrow.innerText = '▲';
+                } else {
+                    fields.style.display = 'none';
+                    arrow.innerText = '▼';
+                }
+            });
+
+            document.getElementById(elId('btn-save-videoai')).addEventListener('click', () => {
+                readVideoAIInputsToConfig();
+                GM_setValue(gmKey('videoai_config'), videoaiConfig);
+                addLog('Đã lưu cấu hình VideoAI API!', 'success');
+                alert('Lưu cấu hình VideoAI thành công!');
+            });
+
+            document.getElementById(elId('btn-test-videoai')).addEventListener('click', async () => {
+                readVideoAIInputsToConfig();
+                GM_setValue(gmKey('videoai_config'), videoaiConfig);
+                await testVideoAIConnection();
+            });
+
+            document.getElementById(elId('btn-push-videoai')).addEventListener('click', async () => {
+                readVideoAIInputsToConfig();
+                GM_setValue(gmKey('videoai_config'), videoaiConfig);
+                if (!allCrawledData || allCrawledData.length === 0) {
+                    alert('Chưa có sản phẩm nào để đẩy!');
+                    return;
+                }
+                updateMergedLinks(allCrawledData);
+                addLog(`Đẩy thủ công ${allCrawledData.length} SP lên VideoAI...`, 'info');
+                try {
+                    await pushToVideoAI(allCrawledData);
+                } catch (err) {
+                    addLog(`Lỗi đẩy VideoAI: ${err.message}`, 'error');
+                    alert(`Lỗi đẩy VideoAI: ${err.message}`);
+                }
+            });
+
             updateCacheCount();
             checkAndResumeState();
         }
@@ -2333,6 +2652,12 @@
             googleConfig.tabName = document.getElementById(elId('sheet-tab')).value.trim();
             googleConfig.clientId = document.getElementById(elId('client-id')).value.trim();
             googleConfig.clientSecret = document.getElementById(elId('client-secret')).value.trim();
+        }
+
+        function readVideoAIInputsToConfig() {
+            videoaiConfig.apiKey = document.getElementById(elId('videoai-key')).value.trim();
+            videoaiConfig.endpoint = document.getElementById(elId('videoai-endpoint')).value.trim() || VIDEOAI_DEFAULT_ENDPOINT;
+            videoaiConfig.autoPush = document.getElementById(elId('videoai-autopush')).checked;
         }
 
         // ============================================================
@@ -2655,6 +2980,14 @@
                         addLog('Xuất file Excel dự phòng cho từ khóa này...', 'warn');
                         exportExcelForData(crawledData, `backup_${keyword}`);
                     }
+                    if (videoaiConfig.autoPush) {
+                        addLog(`Tự động đẩy ${crawledData.length} SP từ khóa "${keyword}" lên VideoAI...`, 'info');
+                        try {
+                            await pushToVideoAI(crawledData);
+                        } catch (err) {
+                            addLog(`Lỗi tự động đẩy VideoAI: ${err.message}`, 'error');
+                        }
+                    }
                 } else {
                     addLog(`Không cào được sản phẩm nào đạt chuẩn cho từ khóa "${keyword}".`, 'warn');
                 }
@@ -2726,6 +3059,13 @@
                     addLog('Tải file Excel dự phòng trước khi dừng...', 'warn');
                     const currentKeyword = keywordsList[currentKeywordIndex] || 'stopped';
                     exportExcelForData(crawledData, `backup_stop_${currentKeyword}`);
+                }
+                if (videoaiConfig.autoPush) {
+                    try {
+                        await pushToVideoAI(crawledData);
+                    } catch (err) {
+                        addLog(`Lỗi tự động đẩy VideoAI khi dừng: ${err.message}`, 'error');
+                    }
                 }
                 crawledData = [];
             }

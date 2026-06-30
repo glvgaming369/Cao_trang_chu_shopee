@@ -1,20 +1,7 @@
-# Python cache
-__pycache__/
-.ruff_cache/
+# Claude Code local config
+.claude/
 
-# Temporary data files
-rs.json
-curl.txt
-*.xlsx
-
-# Google OAuth Credentials & Config (GitHub Push Protection)
-config/token.json
-config/addtaglive.json
-config/config.json
-
-# Antigravity IDE / OS files
+# IDE / OS files
 .gemini/
 .DS_Store
 Thumbs.db
-.claude/
-
