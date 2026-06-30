@@ -29,6 +29,10 @@
     const MAX_BATCH = 200;
     const FLUSH_THRESHOLD = 30; // gom đủ ~30 SP thì đẩy 1 đợt lên VideoAI
     const CAPTURE_TIMEOUT_MS = 15000;
+    const TG_COOLDOWN_MS = 60000;            // chống spam Telegram khi nhiều tab cùng dính captcha
+    const SESSION_MAX_AGE_MS = 6 * 3600 * 1000; // bỏ qua session resume quá cũ
+    const RESUME_DELAY_MS = 3000;            // chờ trước khi tự khôi phục phiên
+    const CAPTCHA_DOM_DELAY_MS = 2500;       // chờ sau khi tải trang rồi mới kiểm tra captcha kiểu DOM
     const PDP_API = '/api/v4/pdp/get_pc';
     const VIDEOAI_DEFAULT_ENDPOINT = 'https://videoai-api-dev.devappnow.com/api/products/shopee-cache/batch';
 
@@ -89,6 +93,19 @@
     }
 
     // ============================================================
+    // TRẠNG THÁI (STATE) — gom về 1 chỗ, khởi tạo sớm
+    // ============================================================
+    let running = false;
+    let resumeChecked = false;
+    // Cache itemID đã xử lý xong (đẩy thành công HOẶC bị loại) -> không làm lại giữa các phiên
+    let doneCache = (GM_getValue(`${NS}_done`, []) || []).map(String);
+    // Tập itemId đang chờ worker bắt (đồng bộ xuống GM để worker nhiều tab cùng nhận diện)
+    const expectingSet = new Set();
+    function syncExpecting() {
+        GM_setValue(`${NS}_expecting`, Array.from(expectingSet));
+    }
+
+    // ============================================================
     // ROUTING: trang sản phẩm = worker (hook), còn lại = panel điều khiển
     // ============================================================
     const isProductPage = /\/product\/\d+\/\d+/.test(window.location.pathname) ||
@@ -105,7 +122,7 @@
         }
         // Bắt captcha kiểu DOM (chèn sau khi tải trang) trên các trang bình thường
         window.addEventListener('load', () => {
-            setTimeout(() => { if (isCaptchaDom()) handleCaptchaPage(); }, 2500);
+            setTimeout(() => { if (isCaptchaDom()) handleCaptchaPage(); }, CAPTCHA_DOM_DELAY_MS);
         });
     }
 
@@ -142,8 +159,11 @@
     }
 
     function notifyCaptcha() {
+        const token = (GM_getValue(`${NS}_tg_token`, '') || '').trim();
+        const chat = (GM_getValue(`${NS}_tg_chat`, '') || '').trim();
+        if (!token || !chat) return; // chưa cấu hình Telegram -> không báo, không tiêu cooldown
         const last = GM_getValue(`${NS}_tg_last`, 0);
-        if (Date.now() - last < 60000) return; // cooldown 60s tránh spam khi nhiều tab cùng dính
+        if (Date.now() - last < TG_COOLDOWN_MS) return; // cooldown tránh spam khi nhiều tab cùng dính
         GM_setValue(`${NS}_tg_last`, Date.now());
         const name = (GM_getValue(`${NS}_tg_name`, '') || 'PDP→VideoAI').trim();
         const msg = `⚠️ <b>[${name}]</b> Gặp CAPTCHA trên Shopee — cần giải để tiếp tục cào.\n` +
@@ -447,18 +467,17 @@
 
     // Tự khôi phục phiên nếu trang bị reload giữa chừng (session còn active).
     // Vị trí được khôi phục nhờ cache: link đã đẩy thành công sẽ bị bỏ qua, chỉ chạy tiếp phần còn lại.
-    let resumeChecked = false;
     function maybeResume() {
         if (resumeChecked) return;
         resumeChecked = true;
         const session = GM_getValue(`${NS}_session`, null);
         if (!session || !session.active) return;
-        if (Date.now() - (session.ts || 0) > 6 * 3600 * 1000) { GM_setValue(`${NS}_session`, null); return; } // quá cũ -> bỏ
+        if (Date.now() - (session.ts || 0) > SESSION_MAX_AGE_MS) { GM_setValue(`${NS}_session`, null); return; } // quá cũ -> bỏ
         log('Phát hiện phiên đang chạy dở (trang đã reload). Tự khôi phục sau 3s — bấm Dừng để huỷ.', 'warn');
         setTimeout(() => {
             const s = GM_getValue(`${NS}_session`, null);
             if (s && s.active && !running) startRun();
-        }, 3000);
+        }, RESUME_DELAY_MS);
     }
 
     function log(msg, type = 'info') {
@@ -497,17 +516,6 @@
         const st = document.getElementById(`${NS}-stop`);
         if (s) { s.disabled = isRunning; s.style.opacity = isRunning ? '0.5' : '1'; }
         if (st) { st.disabled = !isRunning; st.style.background = isRunning ? '#d32f2f' : '#555'; }
-    }
-
-    let running = false;
-
-    // Cache itemID đã xử lý (đẩy thành công) — tránh xử lý lại giữa các phiên
-    let doneCache = (GM_getValue(`${NS}_done`, []) || []).map(String);
-
-    // Tập itemId đang chờ bắt (đồng bộ xuống GM để worker nhiều tab cùng nhận diện)
-    const expectingSet = new Set();
-    function syncExpecting() {
-        GM_setValue(`${NS}_expecting`, Array.from(expectingSet));
     }
 
     // Một lần thử: mở tab, chờ get_pc. Tự thêm/bớt itemId khỏi tập chờ (hỗ trợ chạy song song).
