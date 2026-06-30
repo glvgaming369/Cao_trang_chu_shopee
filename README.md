@@ -9,9 +9,10 @@ Tampermonkey Userscript cào thông tin sản phẩm trên **Shopee VN & PH** (t
 ## ✨ Tính năng nổi bật
 
 1. **Đa thị trường**: Tự nhận diện `shopee.vn` / `shopee.ph` (và cổng `affiliate.shopee.*`), áp dụng tiền tệ, danh mục và bộ lọc mặc định tương ứng.
-2. **Hai chế độ cào**:
+2. **Ba chế độ cào**:
    - **Theo danh mục**: chạy trên trang tìm kiếm/danh mục Shopee, tự cuộn lazy-load và chuyển trang đệ quy.
    - **Theo từ khóa**: chạy trên cổng affiliate, lần lượt xử lý danh sách từ khóa.
+   - **Theo link**: dán hàng loạt link sản phẩm (mỗi dòng 1 link, dạng `.../product/{shopId}/{itemId}`); tool cào đúng các sản phẩm đó (không lọc hoa hồng, luôn cào lại).
 3. **Bắt gói tin API affiliate**: Mở tab ngầm tới trang chi tiết ưu đãi, hook `fetch`/`XHR` để lấy `/api/v3/offer/product`, từ đó trích **hoa hồng người bán / Shopee / tổng**, tồn kho, đánh giá, tên shop... Hỗ trợ lấy thêm tối đa **5 sản phẩm tương tự (L2)** từ mỗi sản phẩm gốc (L1).
 4. **Chống ban & captcha**: Phát hiện trang captcha/verify, **tự động tạm dừng** và chờ giải, có banner cảnh báo khi tab affiliate dính captcha.
 5. **Bộ nhớ đệm (cache)**: Lưu danh sách mã đã cào/đã bỏ qua trong Tampermonkey để tránh trùng lặp giữa các phiên. Hỗ trợ **đồng bộ cache từ Google Sheets** (cột A).

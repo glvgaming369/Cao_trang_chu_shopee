@@ -366,7 +366,9 @@
         let decodedHref = href;
         try { decodedHref = decodeURIComponent(href); } catch (e) { }
 
-        const match = decodedHref.match(/i\.(\d+)\.(\d+)/);
+        // Dạng /product/{shopId}/{itemId} (link người dùng dán) hoặc ...-i.{shopId}.{itemId} (link cũ)
+        let match = decodedHref.match(/\/product\/(\d+)\/(\d+)/);
+        if (!match) match = decodedHref.match(/i\.(\d+)\.(\d+)/);
         if (match) {
             return {
                 shopId: String(match[1]),
@@ -966,6 +968,9 @@
                     itemData[C.price] = parseFloat(card.price) / 100000;
                     itemData[C.shopId] = String(card.shopid || itemData[C.shopId]);
                     itemData[C.url] = `https://${SITE.domain}/product/${card.shopid}/${itemId}`;
+                    // Điền tên & lượt bán từ card khi chưa có sẵn (trường hợp cào theo link không có DOM nguồn)
+                    if (!itemData[C.name]) itemData[C.name] = card.name || '';
+                    if (itemData[C.sold] == null || itemData[C.sold] === '') itemData[C.sold] = card.sold || card.historical_sold || 0;
                 }
                 itemData[C.commission] = totalCom;
                 itemData[C.sellerCom] = sellerCom;
@@ -1327,7 +1332,8 @@
             sellerCommissionMin: SITE.defaults.sellerCommissionMin,
             selectedCategory: 'no-category',
             selectedMode: 'category',
-            keywordsText: ''
+            keywordsText: '',
+            linksText: ''
         };
 
         let sheetConfig = {
@@ -1340,7 +1346,8 @@
             sellerCommissionMin: filterConfig.sellerCommissionMin,
             selectedCategory: filterConfig.selectedCategory || 'no-category',
             selectedMode: filterConfig.selectedMode || 'category',
-            keywordsText: filterConfig.keywordsText || ''
+            keywordsText: filterConfig.keywordsText || '',
+            linksText: filterConfig.linksText || ''
         };
 
         function isTopSalesSelected() {
@@ -1383,6 +1390,11 @@
         function checkAndResumeState() {
             try {
                 const savedState = GM_getValue(gmKey('running_state'));
+                if (savedState && savedState.selectedMode === 'link') {
+                    // Cào theo link chạy trong bộ nhớ, không khôi phục qua reload
+                    GM_setValue(gmKey('running_state'), null);
+                    return;
+                }
                 if (savedState && savedState.isRunning) {
                     addLog('Khôi phục phiên cào trước đó đang chạy dở...', 'warn');
                     isRunning = true;
@@ -1492,6 +1504,7 @@
                     <select id="${elId('run-mode-select')}" style="width: 98%; padding: 5px; border-radius: 4px; border: 1px solid #444; background-color: #2b2b2b; color: white; font-size: 12px;">
                         <option value="category" ${sheetConfig.selectedMode === 'category' ? 'selected' : ''}>Cào theo danh mục</option>
                         <option value="keyword" ${sheetConfig.selectedMode === 'keyword' ? 'selected' : ''}>Cào theo từ khóa</option>
+                        <option value="link" ${sheetConfig.selectedMode === 'link' ? 'selected' : ''}>Cào theo link</option>
                     </select>
                 </div>
 
@@ -1524,6 +1537,13 @@
                 <div id="${elId('keywords-input-wrapper')}" style="margin-bottom: 10px; display: ${sheetConfig.selectedMode === 'keyword' ? 'block' : 'none'};">
                     <label style="display: block; margin-bottom: 4px; font-weight: bold; font-size: 11px; color: #ccc;">Từ khóa tìm kiếm (mỗi từ khóa 1 dòng):</label>
                     <textarea id="${elId('keywords-input')}" rows="4" placeholder="Nhập danh sách từ khóa..." style="width: 96%; padding: 6px; border-radius: 4px; border: 1px solid #444; background-color: #2b2b2b; color: white; font-size: 11px; font-family: monospace; resize: vertical; box-sizing: border-box;">${sheetConfig.keywordsText}</textarea>
+                </div>
+
+                <!-- Danh sách link sản phẩm (Link textarea wrapper) -->
+                <div id="${elId('links-input-wrapper')}" style="margin-bottom: 10px; display: ${sheetConfig.selectedMode === 'link' ? 'block' : 'none'};">
+                    <label style="display: block; margin-bottom: 4px; font-weight: bold; font-size: 11px; color: #ccc;">Danh sách link sản phẩm (mỗi link 1 dòng):</label>
+                    <textarea id="${elId('links-input')}" rows="5" placeholder="https://shopee.vn/product/714557060/20969872164" style="width: 96%; padding: 6px; border-radius: 4px; border: 1px solid #444; background-color: #2b2b2b; color: white; font-size: 11px; font-family: monospace; resize: vertical; box-sizing: border-box;">${sheetConfig.linksText}</textarea>
+                    <div id="${elId('link-progress')}" style="margin-top: 6px; font-size: 11px; color: #4caf50; display: none;">Tiến độ link: <strong id="${elId('link-progress-ratio')}">0/0</strong></div>
                 </div>
 
                 <!-- Cấu hình Google Sheets -->
@@ -1649,10 +1669,12 @@
                     sheetConfig.selectedMode = mode;
                     document.getElementById(elId('category-select-wrapper')).style.display = mode === 'category' ? 'block' : 'none';
                     document.getElementById(elId('keywords-input-wrapper')).style.display = mode === 'keyword' ? 'block' : 'none';
-                    
+                    document.getElementById(elId('links-input-wrapper')).style.display = mode === 'link' ? 'block' : 'none';
+
                     saveFilterConfig();
                     updateKeywordProgressUI();
-                    addLog(`Đã chuyển chế độ cào sang: ${mode === 'category' ? 'Cào danh mục' : 'Cào từ khóa'}`, 'info');
+                    const modeLabel = mode === 'category' ? 'Cào danh mục' : (mode === 'keyword' ? 'Cào từ khóa' : 'Cào theo link');
+                    addLog(`Đã chuyển chế độ cào sang: ${modeLabel}`, 'info');
                 });
             }
 
@@ -1786,14 +1808,134 @@
             const kwInput = document.getElementById(elId('keywords-input'));
             sheetConfig.keywordsText = kwInput ? kwInput.value : '';
 
+            const linkInput = document.getElementById(elId('links-input'));
+            sheetConfig.linksText = linkInput ? linkInput.value : sheetConfig.linksText;
+
             GM_setValue(`${NS}_filter_config_${SITE.code}`, {
                 priceMin: sheetConfig.priceMin,
                 soldMin: sheetConfig.soldMin,
                 sellerCommissionMin: sheetConfig.sellerCommissionMin,
                 selectedCategory: sheetConfig.selectedCategory,
                 selectedMode: sheetConfig.selectedMode,
-                keywordsText: sheetConfig.keywordsText
+                keywordsText: sheetConfig.keywordsText,
+                linksText: sheetConfig.linksText
             });
+        }
+
+        // ============================================================
+        // CÀO THEO LINK CÓ SẴN
+        // ============================================================
+        function parseLinksToItems(rawText) {
+            const lines = (rawText || '').split('\n').map(l => l.trim()).filter(Boolean);
+            const seen = new Set();
+            const items = [];
+            let invalidCount = 0;
+            for (const line of lines) {
+                const parsed = parseProductUrl(line);
+                if (!parsed) { invalidCount++; continue; }
+                if (seen.has(parsed.itemId)) continue;
+                seen.add(parsed.itemId);
+                items.push(parsed);
+            }
+            return { items, invalidCount };
+        }
+
+        function updateLinkProgressUI(done, total) {
+            const wrap = document.getElementById(elId('link-progress'));
+            const ratio = document.getElementById(elId('link-progress-ratio'));
+            if (wrap) wrap.style.display = total > 0 ? 'block' : 'none';
+            if (ratio) ratio.innerText = `${done}/${total}`;
+        }
+
+        async function runLinkScrapingLoop() {
+            const linkInput = document.getElementById(elId('links-input'));
+            const raw = linkInput ? linkInput.value : sheetConfig.linksText;
+            const { items, invalidCount } = parseLinksToItems(raw);
+
+            if (invalidCount > 0) addLog(`Bỏ qua ${invalidCount} dòng link không hợp lệ.`, 'warn');
+
+            if (items.length === 0) {
+                addLog('Không có link sản phẩm hợp lệ để cào!', 'error');
+                alert('Không có link hợp lệ!\nHãy dán link dạng: https://shopee.vn/product/{shopId}/{itemId}');
+                isRunning = false;
+                syncButtonsRunning(false);
+                return;
+            }
+
+            addLog(`Bắt đầu cào ${items.length} link sản phẩm (không lọc hoa hồng)...`, 'success');
+            setStatus('Đang cào link...', '#2196f3');
+            updateLinkProgressUI(0, items.length);
+
+            const BATCH_SIZE = 3;
+            for (let i = 0; i < items.length; i += BATCH_SIZE) {
+                if (!isRunning) break;
+                await checkAndWaitForCaptcha();
+                if (!isRunning) break;
+
+                const batch = items.slice(i, i + BATCH_SIZE);
+                addLog(`Đang cào nhóm link ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(items.length / BATCH_SIZE)}...`, 'info');
+
+                const promises = batch.map(p => {
+                    const itemData = {
+                        [C.itemId]: p.itemId,
+                        [C.shopId]: p.shopId,
+                        [C.name]: '',
+                        [C.url]: p.productUrl
+                    };
+                    // sellerComMin = 0 -> bỏ lọc hoa hồng (cào hết link đã dán)
+                    const tabUrl = `https://${SITE.affiliateDomain}/offer/product_offer/${p.itemId}`;
+                    return processProduct(itemData, tabUrl, 0, '');
+                });
+                const results = await Promise.all(promises);
+
+                const batchData = [];
+                for (const arr of results) {
+                    if (arr && arr.length > 0) {
+                        for (const it of arr) {
+                            batchData.push(it);
+                            crawledData.push(it);
+                            const id = String(it[C.itemId]);
+                            if (!crawledCache.includes(id)) crawledCache.push(id);
+                        }
+                    }
+                }
+
+                GM_setValue(gmKey('crawled_cache'), crawledCache);
+                updateCacheCount();
+                const countEl = document.getElementById(elId('count'));
+                if (countEl) countEl.innerText = crawledData.length;
+                updateLinkProgressUI(Math.min(i + BATCH_SIZE, items.length), items.length);
+
+                if (batchData.length > 0) {
+                    updateMergedLinks(batchData);
+                    addLog(`Đẩy ${batchData.length} SP lên Google Sheets...`, 'info');
+                    try {
+                        await pushToGoogleSheets(batchData);
+                        addLog('Đồng bộ Google Sheets thành công!', 'success');
+                    } catch (err) {
+                        addLog(`Lỗi đồng bộ Sheets: ${err.message}`, 'error');
+                        exportExcelForData(batchData, 'backup_link');
+                    }
+                    if (videoaiConfig.autoPush) {
+                        addLog(`Tự động đẩy ${batchData.length} SP lên VideoAI...`, 'info');
+                        try {
+                            await pushToVideoAI(batchData);
+                        } catch (err) {
+                            addLog(`Lỗi tự động đẩy VideoAI: ${err.message}`, 'error');
+                        }
+                    }
+                }
+
+                await sleep(2000 + Math.random() * 1500);
+            }
+
+            if (isRunning) {
+                addLog('========================================', 'success');
+                addLog(`ĐÃ HOÀN THÀNH CÀO ${items.length} LINK!`, 'success');
+                setStatus('Finished!', '#4caf50');
+                await stopScraper();
+                showDoneOverlay();
+            }
         }
 
         // ============================================================
@@ -2272,6 +2414,10 @@
                 saveRunningState('crawling_popular');
                 addLog(`Bắt đầu cào danh mục...`, 'success');
                 await crawlCurrentPage();
+            } else if (sheetConfig.selectedMode === 'link') {
+                // Cào theo link không điều hướng tab chính -> không dùng resume state
+                GM_setValue(gmKey('running_state'), null);
+                await runLinkScrapingLoop();
             } else {
                 const kwInput = document.getElementById(elId('keywords-input'));
                 const kwText = kwInput ? kwInput.value.trim() : '';
