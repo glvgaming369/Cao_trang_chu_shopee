@@ -1,6 +1,6 @@
 // Service worker (MV3): sở hữu toàn bộ state, mở tab, gọi VideoAI/Telegram, cache, resume.
 import {
-    MIN_IMAGES, MAX_BATCH, VIDEOAI_DEFAULT_ENDPOINT,
+    MAX_BATCH, VIDEOAI_DEFAULT_ENDPOINT,
     num, parseLink, buildVideoAIItem
 } from './lib/shared.js';
 
@@ -217,7 +217,7 @@ async function startRun() {
     // Buffer + tổng kết dùng chung cho cả 2 nguồn
     const buf = [];
     const bufIds = [];
-    let tooFewImages = 0, totalUpserted = 0, totalSkipped = 0;
+    let totalUpserted = 0, totalSkipped = 0;
 
     async function flush(isFinal = false) {
         if (buf.length === 0) return;
@@ -265,7 +265,6 @@ async function startRun() {
                 catch (e) { await markProcessed(link.itemId); log(`Lỗi parse SP ${link.itemId}: ${e.message} — đánh dấu đã xử lý.`, 'error'); continue; }
 
                 if (!item) { await markProcessed(link.itemId); log(`Không có dữ liệu hợp lệ cho SP ${link.itemId} — đánh dấu đã xử lý.`, 'warn'); continue; }
-                if (item.images.length < MIN_IMAGES) { tooFewImages++; await markProcessed(link.itemId); log(`SP ${link.itemId} chỉ có ${item.images.length} ảnh (<${MIN_IMAGES}) — bỏ qua & đánh dấu đã xử lý.`, 'warn'); continue; }
 
                 buf.push(item);
                 bufIds.push(link.itemId);
@@ -283,7 +282,6 @@ async function startRun() {
         await runManualLinks(cfg, processLinks);
     }
 
-    if (tooFewImages) log(`Đã bỏ ${tooFewImages} SP do <${MIN_IMAGES} ảnh.`, 'warn');
     await flush(true);
     log(`HOÀN TẤT! Tổng ghi: ${totalUpserted}, bỏ qua: ${totalSkipped}.`, 'success');
     if (buf.length > 0) log(`Còn ${buf.length} SP chưa đẩy được — bấm Bắt đầu lại để thử.`, 'warn');
