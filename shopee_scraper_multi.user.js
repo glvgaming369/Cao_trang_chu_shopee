@@ -189,29 +189,16 @@
                                 !!document.querySelector('.shopee-captcha-wrapper') ||
                                 !!document.getElementById('captcha-submit');
 
-    if (isGlobalCaptchaPage) {
-        console.log('[Shopee Scraper] Phát hiện trang Captcha/Verify toàn cục!');
-        GM_setValue(gmKey('global_captcha_detected'), true);
-        
-        // Thêm banner cảnh báo nhỏ trên tab bị dính captcha (đặc biệt hữu ích khi tab ngầm/nổi của affiliate bị dính captcha)
-        if (HOST.startsWith('affiliate.')) {
-            window.addEventListener('DOMContentLoaded', () => {
-                const banner = document.createElement('div');
-                banner.id = `${NS}-captcha-aff-banner`;
-                banner.style.cssText = `position: fixed; top: 0; left: 0; width: 100%; z-index: 9999999; background-color: #ee4d2d; color: white; padding: 15px; text-align: center; font-size: 16px; font-weight: bold; box-shadow: 0 2px 10px rgba(0,0,0,0.3);`;
-                banner.innerText = `⚠️ PHÁT HIỆN CAPTCHA AFFILIATE! Vui lòng giải captcha bên dưới để tool chính tiếp tục chạy.`;
-                document.body.appendChild(banner);
-            });
-        }
-    }
-
     // ============================================================
     // PHÂN LỘT TUYẾN DẪN CHẠY (ROUTING)
     // ============================================================
     const isProductDetailTab = /\/offer\/product_offer\/\d+/.test(window.location.pathname);
     const isAffiliatePortal = HOST.startsWith('affiliate.');
 
-    if (isProductDetailTab) {
+    // Trang captcha/verify được xử lý RIÊNG, không chạy portal/main scraper (tránh dựng panel & resume thừa trên tab captcha)
+    if (isGlobalCaptchaPage) {
+        runCaptchaTabHandler();
+    } else if (isProductDetailTab) {
         runDetailTabHook();
     } else if (isAffiliatePortal) {
         runAffiliatePortalScraper();
@@ -220,11 +207,55 @@
     }
 
     // ============================================================
+    // HANDLER CHO TAB DÍNH CAPTCHA (tự focus + tự xoá cờ khi giải xong)
+    // ============================================================
+    function runCaptchaTabHandler() {
+        console.log('[Shopee Scraper] Tab dính Captcha/Verify — kích hoạt chế độ chờ giải.');
+        GM_setValue(gmKey('global_captcha_detected'), true);
+        // Đưa tab captcha ra trước để người dùng thấy & giải ngay (best-effort)
+        try { window.focus(); } catch (e) { }
+
+        const addBanner = () => {
+            if (document.getElementById(`${NS}-captcha-aff-banner`)) return;
+            const banner = document.createElement('div');
+            banner.id = `${NS}-captcha-aff-banner`;
+            banner.style.cssText = `position: fixed; top: 0; left: 0; width: 100%; z-index: 9999999; background-color: #ee4d2d; color: white; padding: 15px; text-align: center; font-size: 16px; font-weight: bold; box-shadow: 0 2px 10px rgba(0,0,0,0.3);`;
+            banner.innerText = `⚠️ PHÁT HIỆN CAPTCHA! Hãy giải captcha trên tab này — tool chính sẽ TỰ ĐỘNG tiếp tục ngay sau khi giải xong.`;
+            (document.body || document.documentElement).appendChild(banner);
+        };
+        if (document.body) addBanner();
+        else window.addEventListener('DOMContentLoaded', addBanner);
+
+        // Theo dõi: ngay khi không còn dấu hiệu captcha (giải tại chỗ) -> tự xoá cờ để tool chính tiếp tục
+        let cleared = false;
+        const watcher = setInterval(() => {
+            if (cleared) return;
+            const stillCaptcha = window.location.href.includes('/verify/') ||
+                !!document.querySelector('.check-captcha-box') ||
+                !!document.querySelector('.shopee-captcha-wrapper') ||
+                !!document.getElementById('captcha-submit') ||
+                !!document.querySelector('iframe[src*="captcha"]');
+            if (!stillCaptcha) {
+                cleared = true;
+                clearInterval(watcher);
+                GM_setValue(gmKey('global_captcha_detected'), false);
+                const b = document.getElementById(`${NS}-captcha-aff-banner`);
+                if (b) b.remove();
+            }
+        }, 700);
+    }
+
+    // ============================================================
     // 1. LOGIC TRÊN TAB CHI TIẾT SẢN PHẨM (HOOK & BẮT GÓI TIN)
     // ============================================================
     function runDetailTabHook() {
         const itemIdMatch = window.location.pathname.match(/\/offer\/product_offer\/(\d+)/);
         const itemId = itemIdMatch ? itemIdMatch[1] : null;
+
+        // Vào được trang chi tiết => không còn bị captcha chặn. Xoá cờ để tool chính tự tiếp tục (không cần bấm nút thủ công).
+        if (GM_getValue(gmKey('global_captcha_detected')) === true) {
+            GM_setValue(gmKey('global_captcha_detected'), false);
+        }
 
         if (itemId) {
             console.log(`[Shopee Scraper Detail] Hooking XHR & Fetch for Item ID: ${itemId}`);
@@ -1111,11 +1142,11 @@
             <div style="font-size: 60px; margin-bottom: 20px; animation: blinker 1s linear infinite;">⚠️ CAPTCHA DETECTED! ⚠️</div>
             <div style="font-size: 24px; font-weight: bold; margin-bottom: 20px; max-width: 800px;">${message}</div>
             <div style="font-size: 18px; color: #ffeb3b; border: 2px dashed #ffeb3b; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                Hãy giải Captcha hiển thị trên trang này hoặc ở tab phụ đang mở.<br>
-                Sau khi giải xong, bấm nút dưới đây để tiếp tục kịch bản cào.
+                Hãy giải Captcha trên tab phụ đang mở (hoặc ngay trên trang này).<br>
+                Sau khi giải xong, tool sẽ <b>TỰ ĐỘNG</b> tiếp tục. Nút bên dưới chỉ dùng khi tool không tự nhận diện.
             </div>
             <button id="${elId('btn-resume-captcha')}" style="padding: 15px 30px; border: none; border-radius: 8px; background-color: #4caf50; color: white; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
-                Đã giải xong captcha - Tiếp tục cào!
+                Tiếp tục cào (thủ công)
             </button>
             <style>
                 @keyframes blinker { 50% { opacity: 0; } }
@@ -3022,6 +3053,7 @@
             currentKeywordIndex = 0;
             crawledData = [];
             allCrawledData = [];
+            GM_setValue(gmKey('global_captcha_detected'), false);
 
             syncButtonsRunning(true);
             saveRunningState('starting');
